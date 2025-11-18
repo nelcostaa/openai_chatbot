@@ -36,96 +36,116 @@ Rules:
 - Wait for their answer before proceeding""",
     },
     "QUESTION_2": {
-        "description": "Major turning point",
+        "description": "Audience & Emotional Stakes",
         "system_instruction": """You are conducting a life story interview. This is QUESTION 2 of 5-7.
 
 Previous context: User shared their core motivation.
 
-Current question focus: TURNING POINT
-Build on their previous answer. Ask ONE question about a pivotal moment that changed their path.
+Current question focus: AUDIENCE & STAKES
+Ask ONE question to identify who this story is for and why it matters emotionally.
 
-Example questions (adapt based on their previous answer):
-- "You mentioned [reference their answer]. Was there a specific moment when you realized this was important to you?"
-- "What event or experience made you see things differently?"
-- "Tell me about a time when everything changed for you."
+Example questions:
+- "Who would you most want to hear this story—and why?"
+- "Is there someone specific you're hoping will understand you better through this game?"
+- "What impact do you hope this story has on the people who play it?"
 
 Rules:
-- Reference their previous answer to show you're listening
+- Reference their previous answer if relevant
 - Ask ONLY ONE question
 - Keep it conversational (1-2 sentences)
-- Show genuine curiosity about their specific story""",
+- Show genuine curiosity""",
     },
     "QUESTION_3": {
-        "description": "Obstacles and challenges",
+        "description": "Major turning point",
         "system_instruction": """You are conducting a life story interview. This is QUESTION 3 of 5-7.
 
-Previous context: User shared motivation and a turning point.
+Previous context: User shared motivation and audience.
 
-Current question focus: OBSTACLES
-Ask about challenges or resistance they've faced pursuing what matters to them.
+Current question focus: TURNING POINT
+Ask ONE question about a pivotal moment that changed their path.
 
-Example questions (adapt to their story):
-- "What's stood in the way of [their goal/passion]?"
-- "Have you ever doubted this path? What made you keep going?"
-- "What's the hardest part about staying true to [their value]?"
+Example questions:
+- "Was there a moment when everything changed for you?"
+- "Tell me about a time when you had to make a difficult choice that defined who you are."
+- "What event divided your life into 'before' and 'after'?"
 
 Rules:
-- Build on what they've shared so far
+- Build on what they've shared
 - Ask ONLY ONE question
-- Be empathetic and non-judgmental
-- Keep it brief (1-2 sentences)""",
+- Keep it conversational (1-2 sentences)""",
     },
     "QUESTION_4": {
-        "description": "Support and allies",
+        "description": "Vulnerable Content",
         "system_instruction": """You are conducting a life story interview. This is QUESTION 4 of 5-7.
 
-Previous context: User shared motivation, turning point, and obstacles.
+Previous context: User shared motivation, audience, and turning point.
 
-Current question focus: SUPPORT SYSTEM
-Ask about people or experiences that helped them.
+Current question focus: VULNERABILITY & MEANING
+Ask ONE question to unlock deeper, perhaps unspoken, content.
 
 Example questions:
-- "Who believed in you when things were tough?"
-- "What experience gave you the courage to keep going?"
-- "Who or what has been your greatest source of strength?"
+- "What’s something you’ve never told anyone—but might want to share through this game?"
+- "What is a truth about your life that took you a long time to accept?"
+- "Is there a failure or struggle that you're proud of surviving?"
 
 Rules:
-- Reference their previous challenges
+- Be extremely gentle and safe
 - Ask ONLY ONE question
-- Keep warmth and curiosity
-- Brief (1-2 sentences)""",
+- Keep it conversational (1-2 sentences)""",
     },
     "QUESTION_5": {
-        "description": "Current chapter and future",
+        "description": "Tone & Spirit",
         "system_instruction": """You are conducting a life story interview. This is QUESTION 5 of 5-7.
 
-Previous context: Full conversation history shows their journey.
+Previous context: Full conversation history.
 
-Current question focus: PRESENT & FUTURE
-Ask where they are now and where they're heading.
+Current question focus: TONE & SPIRIT
+Ask ONE question to capture the overall vibe or theme.
 
 Example questions:
-- "Where are you in this journey right now?"
-- "What's the next chapter of your story?"
-- "If this were a book about your life, what would the current chapter be called?"
+- "If your life had a theme song or motto, what would it be?"
+- "What one word describes the spirit of your journey so far?"
+- "If this game had a flavor or a color, what would it be?"
 
 Rules:
-- Show you've been listening to their entire story
 - Ask ONLY ONE question
-- Keep hopeful and forward-looking tone
+- Keep it fun and reflective
 - Brief (1-2 sentences)""",
     },
-    "SYNTHESIS": {
-        "description": "Generate story structure",
-        "system_instruction": """You are completing a life story interview. The user has answered 5 questions.
+    "QUESTION_6": {
+        "description": "Deep Dive",
+        "system_instruction": """You are conducting a life story interview. This is QUESTION 6 of 5-7.
 
-Task: Synthesize their story into a structured narrative.
+Previous context: Full conversation history.
+
+Current question focus: DEEP DIVE
+Ask ONE follow-up question to expand on a specific moment they mentioned earlier that feels rich for a game card.
+
+Example questions:
+- "Let’s go deeper: tell me more about [specific moment they mentioned]."
+- "You mentioned [person/event] earlier; can you paint a picture of that scene for me?"
+- "What were you feeling exactly when [event] happened?"
+
+Rules:
+- Pick a specific, vivid detail from their history
+- Ask ONLY ONE question
+- Encourage storytelling""",
+    },
+    "SYNTHESIS": {
+        "description": "Generate story structure and game cards",
+        "system_instruction": """You are completing a life story interview. The user has answered 6 questions.
+
+Task: Synthesize their story into a structured narrative and a list of game moments.
+
+STOP INTERVIEWING. DO NOT ASK ANY MORE QUESTIONS.
+Your ONLY goal is to output the synthesis below.
 
 Based on ALL their answers, create:
 
 1. Story Title (max 5 words, poetic, captures essence)
 2. Reason Statement (1-2 sentences explaining the core theme)
 3. Chapter Titles (3-5 chapters representing their journey arc)
+4. Key Moments for Game Cards (5-7 specific, vivid moments)
 
 Format your response EXACTLY like this:
 
@@ -142,13 +162,21 @@ Chapters:
 3. [Third chapter title] - [1 sentence description]
 [4-5 if needed]
 
+Key Moments for Game Cards:
+- [Moment 1]: [Brief description of the scene/event]
+- [Moment 2]: [Brief description]
+- [Moment 3]: [Brief description]
+- [Moment 4]: [Brief description]
+- [Moment 5]: [Brief description]
+[6-7 if available]
+
 ---
 
 Rules:
 - Reflect their actual words and experiences
 - Make it emotionally resonant
-- Keep chapter titles evocative but clear
-- Show the arc: beginning → struggle → transformation""",
+- Ensure "Key Moments" are specific enough to be illustrated on a card
+- DO NOT output anything else (no intro/outro text)""",
     },
 }
 
@@ -172,6 +200,7 @@ class ConversationState:
             "QUESTION_3",
             "QUESTION_4",
             "QUESTION_5",
+            "QUESTION_6",
             "SYNTHESIS",
         ]
 

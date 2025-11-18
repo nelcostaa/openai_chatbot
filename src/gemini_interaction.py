@@ -41,20 +41,28 @@ def get_completion(
 ) -> str:
     """Generate response using Google Gemini with system instruction"""
     try:
-        # Build complete message list with system instruction at the start
-        all_messages = [{"role": "user", "content": system_instruction}]
-        all_messages.extend(conversation_history)
-        all_messages.append({"role": "user", "content": user_message})
-
-        # Convert to Gemini format
-        gemini_messages = format_messages_for_gemini(all_messages)
-
-        # Start chat with history (excluding last message)
-        chat = model.start_chat(
-            history=gemini_messages[:-1] if len(gemini_messages) > 1 else []
+        # Create model with system instruction
+        model = genai.GenerativeModel(
+            "gemini-2.0-flash", system_instruction=system_instruction
         )
 
-        # Send last message
+        # Prepare history for chat session
+        # If the last message in history is the current user_message, exclude it
+        # because we will send it via chat.send_message
+        history_to_process = conversation_history
+        if (
+            conversation_history
+            and conversation_history[-1].get("content") == user_message
+        ):
+            history_to_process = conversation_history[:-1]
+
+        # Convert to Gemini format
+        gemini_history = format_messages_for_gemini(history_to_process)
+
+        # Start chat with history
+        chat = model.start_chat(history=gemini_history)
+
+        # Send message
         response = chat.send_message(user_message)
 
         return response.text
