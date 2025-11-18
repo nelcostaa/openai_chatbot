@@ -210,9 +210,9 @@ class ConversationState:
             ]
             return any(word in user_message.lower() for word in affirmative)
 
-        # After each question, advance when user provides substantial answer
+        # After each question, advance when user provides any non-empty answer
         if "QUESTION" in self.phase:
-            return len(user_message.strip()) > 20
+            return len(user_message.strip()) > 0
 
         return False
 
