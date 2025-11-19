@@ -1,34 +1,69 @@
 import { useState } from 'react'
 
+// Route definitions matching the backend
+const STORY_ROUTES = {
+  "1": { name: "Chronological Steward", description: "Share your story in order from beginning to present" },
+  "2": { name: "Thematic Explorer", description: "Organize by life themes (love, career, growth)" },
+  "3": { name: "Anecdotal Spark", description: "Share vivid, standalone moments and memories" },
+  "4": { name: "Interviewer's Chair", description: "Answer structured, thought-provoking questions" },
+  "5": { name: "Reflective Journaler", description: "Explore challenges and personal growth introspectively" },
+  "6": { name: "Legacy Weaver", description: "Focus on what you want to leave behind for future generations" },
+  "7": { name: "Personal Route", description: "Describe your own approach" },
+}
+
 function App() {
   // Estado para armazenar as mensagens do chat
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: 'Olá! Bem-vindo à Pizzaria Delícia! 🍕\nVocê gostaria de fazer um pedido? (sim/não)' }
+    { role: 'assistant', content: 'Welcome to the Life Story Game! I\'ll guide you through telling your life story to create a personalized board game. Are you ready to begin?' }
   ])
-  
+
   // Estado para o texto do input
   const [input, setInput] = useState('')
-  
+
   // Estado para loading
   const [isLoading, setIsLoading] = useState(false)
-  
+
   // Estado para erros
   const [error, setError] = useState(null)
 
+  // Session and phase tracking
+  const [sessionId] = useState('default')
+  const [currentPhase, setCurrentPhase] = useState('GREETING')
+  const [selectedRoute, setSelectedRoute] = useState(null)
+  const [showRouteSelection, setShowRouteSelection] = useState(false)
+
+  // Handle route selection
+  const handleRouteSelect = async (routeNumber) => {
+    setSelectedRoute(routeNumber)
+    setShowRouteSelection(false)
+
+    // If route 7, show custom input prompt
+    if (routeNumber === "7") {
+      const customMessage = { role: 'assistant', content: 'Please describe your preferred approach to telling your story:' }
+      setMessages([...messages,
+      { role: 'user', content: routeNumber },
+        customMessage
+      ])
+    } else {
+      // Send route selection to backend
+      await sendMessage(routeNumber)
+    }
+  }
+
   // Função que é chamada quando o formulário é enviado
   const handleSubmit = async (e) => {
-    e.preventDefault() // Previne o comportamento padrão do formulário
-    
-    // Se o input estiver vazio, não faz nada
+    e.preventDefault()
     if (!input.trim() || isLoading) return
+    await sendMessage(input.trim())
+  }
 
-    const userMessage = input.trim()
-    
+  // Send message to backend
+  const sendMessage = async (userMessage) => {
     // Adiciona a mensagem do usuário ao array de mensagens
     const newUserMessage = { role: 'user', content: userMessage }
     const updatedMessages = [...messages, newUserMessage]
     setMessages(updatedMessages)
-    
+
     // Limpa o input e erros anteriores
     setInput('')
     setError(null)
@@ -41,27 +76,41 @@ function App() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ messages: updatedMessages }),
+        body: JSON.stringify({
+          messages: updatedMessages,
+          session_id: sessionId
+        }),
       })
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }))
-        throw new Error(errorData.error || `Erro ${response.status}: ${response.statusText}`)
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        throw new Error(errorData.error || `Error ${response.status}: ${response.statusText}`)
       }
 
       const data = await response.json()
-      
+
+      // Update phase tracking
+      setCurrentPhase(data.phase)
+      if (data.selected_route) {
+        setSelectedRoute(data.selected_route)
+      }
+
+      // Show route selection UI when entering ROUTE_SELECTION phase
+      if (data.phase === 'ROUTE_SELECTION' && !showRouteSelection) {
+        setShowRouteSelection(true)
+      }
+
       // Adiciona a resposta do assistente
       setMessages([...updatedMessages, { role: 'assistant', content: data.response }])
-      
+
     } catch (err) {
-      console.error('Erro ao chamar API:', err)
-      setError(err.message || 'Erro ao conectar com o servidor. Verifique se o backend está rodando.')
-      
+      console.error('Error calling API:', err)
+      setError(err.message || 'Error connecting to server. Check if backend is running.')
+
       // Adiciona mensagem de erro ao chat
       setMessages([
         ...updatedMessages,
-        { role: 'assistant', content: `Desculpe, ocorreu um erro: ${err.message || 'Erro desconhecido'}` }
+        { role: 'assistant', content: `Sorry, an error occurred: ${err.message || 'Unknown error'}` }
       ])
     } finally {
       setIsLoading(false)
@@ -70,8 +119,36 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col">
-      <h1 className="text-2xl font-bold p-4 border-b border-gray-700">Chatbot</h1>
-      
+      <div className="p-4 border-b border-gray-700">
+        <h1 className="text-2xl font-bold">Life Story Game</h1>
+        {currentPhase !== 'GREETING' && (
+          <div className="text-sm text-gray-400 mt-1">
+            Phase: {currentPhase}
+            {selectedRoute && selectedRoute !== "7" && ` | Route: ${STORY_ROUTES[selectedRoute]?.name}`}
+            {selectedRoute === "7" && ` | Route: Personal Route`}
+          </div>
+        )}
+      </div>
+
+      {/* Route Selection UI */}
+      {showRouteSelection && (
+        <div className="p-4 bg-gray-800 border-b border-gray-700">
+          <h2 className="text-xl font-semibold mb-4">Choose Your Storytelling Approach:</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {Object.entries(STORY_ROUTES).map(([num, route]) => (
+              <button
+                key={num}
+                onClick={() => handleRouteSelect(num)}
+                className="text-left p-4 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors border border-gray-600"
+              >
+                <div className="font-semibold text-blue-400">{num}. {route.name}</div>
+                <div className="text-sm text-gray-300 mt-1">{route.description}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Área de mensagens - ocupa o espaço disponível */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((msg, index) => (
@@ -80,11 +157,10 @@ function App() {
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                msg.role === 'user'
-                  ? 'bg-blue-600'
-                  : 'bg-gray-700'
-              }`}
+              className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${msg.role === 'user'
+                ? 'bg-blue-600'
+                : 'bg-gray-700'
+                }`}
             >
               <div className="whitespace-pre-wrap break-words">
                 {msg.content}
@@ -92,7 +168,7 @@ function App() {
             </div>
           </div>
         ))}
-        
+
         {isLoading && (
           <div className="flex justify-start">
             <div className="bg-gray-700 px-4 py-2 rounded-lg">
@@ -100,7 +176,7 @@ function App() {
             </div>
           </div>
         )}
-        
+
         {error && (
           <div className="flex justify-center">
             <div className="bg-red-900 border border-red-700 text-red-200 px-4 py-2 rounded-lg text-sm">

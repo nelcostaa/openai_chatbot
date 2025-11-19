@@ -5,6 +5,7 @@ from src.terminal_ui import (
     print_ai_message,
     print_header,
     print_phase_info,
+    print_route_options,
 )
 
 
@@ -48,6 +49,9 @@ def run_interview():
             state.advance_phase()
 
             if previous_phase != state.phase:
+                # Show route options when entering route selection phase
+                if state.phase == "ROUTE_SELECTION":
+                    print_route_options()
                 print_phase_info(state)
 
         # Get current phase configuration
@@ -55,6 +59,10 @@ def run_interview():
 
         # Get system instruction for current phase
         system_instruction = phase_config["system_instruction"]
+
+        # Adapt instruction based on selected route (for question phases)
+        if "QUESTION" in state.phase and state.selected_route:
+            system_instruction = state.get_route_adapted_instruction(system_instruction)
 
         # Generate AI response
         ai_response = generate_ai_response(

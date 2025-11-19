@@ -1,6 +1,46 @@
 """Module designed to handle conversation management for the chatbot application."""
 
-from typing import Dict, List
+from typing import Dict, List, Optional
+
+# Route definitions from Life Story AI Assistant specification
+STORY_ROUTES = {
+    "1": {
+        "name": "Chronological Steward",
+        "persona": "Likes order, facts, and timelines.",
+        "goal": "Capture events in sequential, linear order from birth to present.",
+        "prompt_focus": "Let's start at the very beginning. What are the earliest significant memories you have, and what was the year?",
+    },
+    "2": {
+        "name": "Thematic Explorer",
+        "persona": "Prefers discussing abstract concepts (e.g., love, career, struggle).",
+        "goal": "Capture stories grouped by core life themes, ignoring strict timelines.",
+        "prompt_focus": "What are the three most defining themes in your life (e.g., Travel, Family, Innovation)? Let's start with the first one.",
+    },
+    "3": {
+        "name": "Anecdotal Spark",
+        "persona": "Enjoys sharing short, punchy, isolated moments.",
+        "goal": "Capture individual, high-impact stories, moments, or 'vignettes.'",
+        "prompt_focus": "Tell me about a time you laughed until you cried, or the most surprising thing that ever happened to you.",
+    },
+    "4": {
+        "name": "Interviewer's Chair",
+        "persona": "Prefers direct, structured questioning (like a journalist asking).",
+        "goal": "Capture responses to pre-set, deep, thought-provoking questions.",
+        "prompt_focus": "Let's begin with Question 1: What is the greatest lesson you learned from your parents or guardians?",
+    },
+    "5": {
+        "name": "Reflective Journaler",
+        "persona": "Enjoys personal, introspective writing and self-analysis.",
+        "goal": "Capture thoughts on challenges, feelings, and personal growth.",
+        "prompt_focus": "Reflect on a period of great challenge. What were you feeling, and how did you overcome it?",
+    },
+    "6": {
+        "name": "Legacy Weaver",
+        "persona": "Focused on future impact and what they want to leave behind.",
+        "goal": "Capture stories and beliefs that define their legacy and intended value.",
+        "prompt_focus": "What message do you want to pass on to future generations, and which stories best exemplify that message?",
+    },
+}
 
 INTERVIEW_PHASES = {
     "GREETING": {
@@ -11,11 +51,31 @@ Your role: Guide users through telling their life story to create a personalized
 
 Current phase: GREETING
 - Welcome the user warmly
-- Explain: "I'll ask 5-7 questions about your life story to understand your journey, turning points, and what drives you."
-- Explain: "Your answers will be transformed into a beautiful game narrative with a poetic title and chapter titles."
-- Ask: "Are you ready to begin? (Type 'yes' to start)"
+- Explain: "I'll guide you through telling your life story to create a personalized board game."
+- Explain: "First, you'll choose how you'd like to share your story - there are 6 different approaches."
+- Ask: "Are you ready to see the options? (Type 'yes' to start)"
 - Keep response SHORT (2-3 sentences max)
 - DO NOT ask interview questions yet, just welcome and confirm readiness""",
+    },
+    "ROUTE_SELECTION": {
+        "description": "User selects their preferred storytelling approach",
+        "system_instruction": """You are presenting route options for the Life Story Game.
+
+Current phase: ROUTE SELECTION
+
+Present the 6 storytelling routes clearly and warmly:
+
+1. **Chronological Steward** - Share your story in order from beginning to present
+2. **Thematic Explorer** - Organize by life themes (love, career, growth)
+3. **Anecdotal Spark** - Share vivid, standalone moments and memories
+4. **Interviewer's Chair** - Answer structured, thought-provoking questions
+5. **Reflective Journaler** - Explore challenges and personal growth introspectively
+6. **Legacy Weaver** - Focus on what you want to leave behind for future generations
+7. **Personal Route** - Describe your own approach
+
+Ask them to choose a number (1-7), or if they choose 7, ask them to describe their preferred approach.
+
+Keep your response SHORT and clear. DO NOT start the interview yet.""",
     },
     "QUESTION_1": {
         "description": "Core motivation - What drives you?",
@@ -193,8 +253,11 @@ class ConversationState:
         self.phase = "GREETING"
         self.question_count = 0
         self.messages: List[Dict[str, str]] = []
+        self.selected_route: Optional[str] = None  # Stores route number (1-7)
+        self.custom_route_description: Optional[str] = None  # For route 7
         self.phase_order = [
             "GREETING",
+            "ROUTE_SELECTION",
             "QUESTION_1",
             "QUESTION_2",
             "QUESTION_3",
@@ -215,6 +278,10 @@ class ConversationState:
         - When self.phase == "GREETING": treat short affirmative responses as intent to proceed.
             - Checks for presence of common affirmative tokens (e.g. "yes", "yeah", "sure", "ready", "ok", "let's go", "sim", "vamos")
             - Comparison is case-insensitive and uses substring membership, so tokens may match as substrings of the input.
+        - When self.phase == "ROUTE_SELECTION": validate and store route selection (1-7)
+            - For routes 1-6: store route and advance
+            - For route 7: if route not yet set, store route but don't advance (need description)
+            - For route 7: if route already set to "7", store description and advance
         - When "QUESTION" is in self.phase: consider the user to have given a substantial answer when the trimmed message length exceeds 20 characters.
         - For any other phase values, the function returns False (no advancement).
         Parameters:
@@ -239,6 +306,29 @@ class ConversationState:
             ]
             return any(word in user_message.lower() for word in affirmative)
 
+        # Route selection logic
+        if self.phase == "ROUTE_SELECTION":
+            message_clean = user_message.strip()
+
+            # Check if user entered a route number
+            if message_clean in ["1", "2", "3", "4", "5", "6"]:
+                self.selected_route = message_clean
+                return True
+
+            # Handle route 7 (custom route)
+            if message_clean == "7":
+                if self.selected_route is None:
+                    self.selected_route = "7"
+                    return False  # Don't advance yet, need description
+                return False
+
+            # If route 7 already selected, next message is the description
+            if self.selected_route == "7" and len(message_clean) > 10:
+                self.custom_route_description = message_clean
+                return True
+
+            return False
+
         # After each question, advance when user provides any non-empty answer
         if "QUESTION" in self.phase:
             return len(user_message.strip()) > 0
@@ -259,3 +349,33 @@ class ConversationState:
     def add_message(self, role: str, content: str):
         """Add a message to the conversation history"""
         self.messages.append({"role": role, "content": content})
+
+    def get_route_info(self) -> Optional[Dict[str, str]]:
+        """Get information about the selected route"""
+        if self.selected_route and self.selected_route in STORY_ROUTES:
+            return STORY_ROUTES[self.selected_route]
+        elif self.selected_route == "7":
+            return {
+                "name": "Personal Route",
+                "persona": "Custom approach",
+                "goal": "Follow user's preferred method",
+                "prompt_focus": self.custom_route_description
+                or "Custom storytelling approach",
+            }
+        return None
+
+    def get_route_adapted_instruction(self, base_instruction: str) -> str:
+        """Adapt question instructions based on selected route"""
+        route_info = self.get_route_info()
+        if not route_info:
+            return base_instruction
+
+        # Add route context to instruction
+        route_context = f"""
+SELECTED ROUTE: {route_info['name']}
+Route Focus: {route_info['goal']}
+User Persona: {route_info['persona']}
+
+Adapt your questioning style to match this route's approach while maintaining the core question objective.
+"""
+        return route_context + "\n" + base_instruction
