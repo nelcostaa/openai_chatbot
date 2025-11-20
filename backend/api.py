@@ -29,7 +29,25 @@ if not GOOGLE_API_KEY:
     raise ValueError("GOOGLE_API_KEY not found in .env file")
 
 genai.configure(api_key=GOOGLE_API_KEY)
-model = genai.GenerativeModel("gemini-2.5-flash")
+
+# Model fallback cascade - ordered by preference and rate limits
+# When 429 error occurs, we'll try the next model in the list
+# Context is preserved since conversation history is client-side!
+MODEL_FALLBACK_CASCADE = [
+    # Primary: Best price-performance
+    "gemini-2.5-flash",  # 10 RPM, 250K TPM, 250 RPD
+    # Fallback tier 1: Higher RPM models
+    "gemini-2.5-flash-lite",  # 15 RPM, 250K TPM, 1K RPD (more daily quota)
+    "gemini-2.0-flash",  # 15 RPM, 1M TPM, 200 RPD (huge context window)
+    # Fallback tier 2: Highest RPM
+    "gemini-2.0-flash-lite",  # 30 RPM, 1M TPM, 200 RPD (fastest RPM)
+    # Fallback tier 3: Preview models
+    "gemini-2.5-flash-preview",  # 10 RPM, 250K TPM, 250 RPD
+    "gemini-2.5-flash-lite-preview",  # 15 RPM, 250K TPM, 1K RPD
+]
+
+# Track which model is currently active (global state)
+current_model_index = 0
 
 # In-memory session storage (replace with database in production)
 # Key: session_id, Value: {phase, selected_route, custom_route_description, question_count}
@@ -90,63 +108,119 @@ Adapt your questioning style to match this route's approach while maintaining th
 
 
 def generate_ai_response(messages, system_instruction):
-    """Generate response using Google Gemini AI with system instruction"""
-    try:
-        # Initialize model WITHOUT system_instruction parameter
-        # The parameter doesn't exist in google-generativeai 0.8.3
-        model_with_instruction = genai.GenerativeModel("gemini-2.5-flash")
+    """
+    Generate response using Google Gemini AI with automatic model fallback.
 
-        # Convert messages to Gemini format
-        gemini_messages = format_messages_for_gemini(messages)
+    If a model returns 429 (rate limit exceeded), automatically tries the next
+    model in the cascade. Context is preserved since conversation history is
+    maintained client-side.
+    """
+    global current_model_index
 
-        # Build conversation history with system instruction embedded
-        api_history = []
+    # Convert messages to Gemini format once
+    gemini_messages = format_messages_for_gemini(messages)
+    last_message = messages[-1].get("content", "")
 
-        # If first message, establish system context
-        if len(gemini_messages) == 1:
-            api_history = [
-                {
-                    "role": "user",
-                    "parts": [
-                        {
-                            "text": f"System Instructions: {system_instruction}\n\nPlease acknowledge you understand these instructions."
-                        }
-                    ],
-                },
-                {
-                    "role": "model",
-                    "parts": [
-                        {"text": "I understand and will follow these instructions."}
-                    ],
-                },
-            ]
-        else:
-            # Use existing conversation history
-            api_history = gemini_messages[:-1]
+    # Try each model in the fallback cascade
+    for attempt_index in range(len(MODEL_FALLBACK_CASCADE)):
+        # Use current model or try next one
+        model_to_try_index = (current_model_index + attempt_index) % len(
+            MODEL_FALLBACK_CASCADE
+        )
+        model_name = MODEL_FALLBACK_CASCADE[model_to_try_index]
 
-        # Start chat with history
-        chat = model_with_instruction.start_chat(history=api_history)
+        try:
+            print(
+                f"[API] Attempting with model: {model_name} (attempt {attempt_index + 1}/{len(MODEL_FALLBACK_CASCADE)})"
+            )
 
-        # Get the last user message
-        last_message = messages[-1].get("content", "")
+            # Initialize model
+            model_with_instruction = genai.GenerativeModel(model_name)
 
-        # For subsequent messages, include system instruction as context
-        if len(gemini_messages) > 1:
-            message_with_context = f"[Remember: {system_instruction}]\n\n{last_message}"
-        else:
-            message_with_context = last_message
+            # Build conversation history with system instruction embedded
+            api_history = []
 
-        # Generate response
-        response = chat.send_message(message_with_context)
+            # If first message, establish system context
+            if len(gemini_messages) == 1:
+                api_history = [
+                    {
+                        "role": "user",
+                        "parts": [
+                            {
+                                "text": f"System Instructions: {system_instruction}\n\nPlease acknowledge you understand these instructions."
+                            }
+                        ],
+                    },
+                    {
+                        "role": "model",
+                        "parts": [
+                            {"text": "I understand and will follow these instructions."}
+                        ],
+                    },
+                ]
+            else:
+                # Use existing conversation history
+                api_history = gemini_messages[:-1]
 
-        return response.text
+            # Start chat with history
+            chat = model_with_instruction.start_chat(history=api_history)
 
-    except Exception as e:
-        print(f"Error generating AI response: {e}")
-        import traceback
+            # For subsequent messages, include system instruction as context
+            if len(gemini_messages) > 1:
+                message_with_context = (
+                    f"[Remember: {system_instruction}]\n\n{last_message}"
+                )
+            else:
+                message_with_context = last_message
 
-        traceback.print_exc()
-        raise
+            # Generate response
+            response = chat.send_message(message_with_context)
+
+            # Success! Update current model if we switched
+            if model_to_try_index != current_model_index:
+                old_model = MODEL_FALLBACK_CASCADE[current_model_index]
+                current_model_index = model_to_try_index
+                print(
+                    f"[API] ✅ Successfully switched from {old_model} to {model_name}"
+                )
+            else:
+                print(f"[API] ✅ Success with {model_name}")
+
+            return response.text
+
+        except Exception as e:
+            error_message = str(e)
+            print(f"[API] ❌ Error with {model_name}: {error_message}")
+
+            # Check if it's a 429 rate limit error
+            if (
+                "429" in error_message
+                or "RESOURCE_EXHAUSTED" in error_message
+                or "rate limit" in error_message.lower()
+            ):
+                print(f"[API] 🔄 Rate limit hit on {model_name}, trying next model...")
+
+                # If this was our last attempt, raise the error
+                if attempt_index == len(MODEL_FALLBACK_CASCADE) - 1:
+                    print(
+                        f"[API] ⚠️ All models exhausted! All {len(MODEL_FALLBACK_CASCADE)} models hit rate limits."
+                    )
+                    raise Exception(
+                        "All available models have exceeded their rate limits. Please try again later."
+                    )
+
+                # Otherwise, continue to next model
+                continue
+
+            # For non-429 errors, log and re-raise immediately
+            print(f"[API] ⚠️ Non-rate-limit error: {error_message}")
+            import traceback
+
+            traceback.print_exc()
+            raise
+
+    # Should never reach here, but just in case
+    raise Exception("Failed to generate response with any available model")
 
 
 # ==============================================================================
@@ -288,6 +362,23 @@ def health():
     return jsonify({"status": "ok", "service": "AI Chatbot"}), 200
 
 
+@app.route("/api/model-status", methods=["GET"])
+def model_status():
+    """Get current active model and fallback cascade info"""
+    return (
+        jsonify(
+            {
+                "current_model": MODEL_FALLBACK_CASCADE[current_model_index],
+                "current_model_index": current_model_index,
+                "available_models": MODEL_FALLBACK_CASCADE,
+                "total_models": len(MODEL_FALLBACK_CASCADE),
+                "fallback_enabled": True,
+            }
+        ),
+        200,
+    )
+
+
 # ==============================================================================
 # MAIN
 # ==============================================================================
@@ -295,6 +386,13 @@ def health():
 if __name__ == "__main__":
     print("🚀 Flask server running at http://localhost:5000")
     print("📡 Available endpoints:")
-    print("   - POST /api/chat   (Chat with AI)")
-    print("   - GET  /health     (Health check)")
+    print("   - POST /api/chat         (Chat with AI)")
+    print("   - GET  /health           (Health check)")
+    print("   - GET  /api/model-status (Current model info)")
+    print("\n🤖 Model Fallback Cascade Enabled:")
+    for idx, model in enumerate(MODEL_FALLBACK_CASCADE):
+        prefix = "  ➤" if idx == current_model_index else "   "
+        print(f"{prefix} {idx + 1}. {model}")
+    print("\n💡 If rate limit (429) is hit, will automatically fallback to next model")
+    print("   Context is preserved - conversation history maintained client-side!\n")
     app.run(debug=True, port=5000, host="0.0.0.0")
