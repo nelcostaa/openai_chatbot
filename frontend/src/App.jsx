@@ -26,10 +26,10 @@ function App() {
   // Estado para erros
   const [error, setError] = useState(null)
 
-  // Session and phase tracking
-  const [sessionId] = useState('default')
+  // Phase tracking (client-side state for stateless backend)
   const [currentPhase, setCurrentPhase] = useState('GREETING')
   const [selectedRoute, setSelectedRoute] = useState(null)
+  const [customRouteDescription, setCustomRouteDescription] = useState(null)
   const [showRouteSelection, setShowRouteSelection] = useState(false)
 
   // Handle route selection
@@ -44,8 +44,10 @@ function App() {
       { role: 'user', content: routeNumber },
         customMessage
       ])
+      // Don't advance phase yet - need description first
     } else {
-      // Send route selection to backend
+      // Send route selection to backend and advance phase
+      setCurrentPhase('QUESTION_1')  // Move to first question
       await sendMessage(routeNumber)
     }
   }
@@ -70,7 +72,7 @@ function App() {
     setIsLoading(true)
 
     try {
-      // Chama a API do backend enviando todo o histórico de mensagens
+      // Send full state to stateless backend
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -78,7 +80,9 @@ function App() {
         },
         body: JSON.stringify({
           messages: updatedMessages,
-          session_id: sessionId
+          phase: currentPhase,
+          selected_route: selectedRoute,
+          custom_route_description: customRouteDescription
         }),
       })
 
@@ -89,15 +93,31 @@ function App() {
 
       const data = await response.json()
 
-      // Update phase tracking
-      setCurrentPhase(data.phase)
-      if (data.selected_route) {
-        setSelectedRoute(data.selected_route)
+      // Handle phase advancement logic (client-side)
+      const lastMessage = userMessage.toLowerCase()
+
+      // Advance from GREETING to ROUTE_SELECTION on affirmative
+      if (currentPhase === 'GREETING' && (lastMessage.includes('yes') || lastMessage.includes('sim') || lastMessage.includes('ready') || lastMessage.includes('ok'))) {
+        setCurrentPhase('ROUTE_SELECTION')
+        setShowRouteSelection(true)
       }
 
-      // Show route selection UI when entering ROUTE_SELECTION phase
-      if (data.phase === 'ROUTE_SELECTION' && !showRouteSelection) {
-        setShowRouteSelection(true)
+      // Advance from ROUTE_SELECTION when route selected (handled in handleRouteSelect)
+
+      // Advance from QUESTION phases on any response
+      if (currentPhase.startsWith('QUESTION_') && userMessage.trim().length > 0) {
+        const questionNum = parseInt(currentPhase.split('_')[1])
+        if (questionNum < 6) {
+          setCurrentPhase(`QUESTION_${questionNum + 1}`)
+        } else {
+          setCurrentPhase('SYNTHESIS')
+        }
+      }
+
+      // Handle route 7 custom description
+      if (selectedRoute === '7' && !customRouteDescription && userMessage.trim().length > 10) {
+        setCustomRouteDescription(userMessage.trim())
+        setCurrentPhase('QUESTION_1')
       }
 
       // Adiciona a resposta do assistente
