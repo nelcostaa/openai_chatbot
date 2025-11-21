@@ -10,15 +10,34 @@ USER_PROFILE = {
     "age": "your_age",
     "audience": "your_audience",
     "tone": "your_tone",
-    "why_story": "your_reason_for_telling_story"
+    "why_story": "your_reason_for_telling_story",
 }
 
 
 ## TODO WHEIGHT TAGS BASED ON USER INPUT
-## TODO PERMANENT TAGS VS TEMPORARY TAGS 
+## TODO PERMANENT TAGS VS TEMPORARY TAGS
 ## TODO: TAGS SHOULD BE DINAMIC, CHANGE AS THE USER CONVERSATION PROGRESSES
-TAGS = ["adventure", "family", "career", "love", "challenge", "growth", "travel", "friendship", "legacy", "identity",
-        "father_figure", "mother_figure", "mentor", "loss", "success", "failure", "humor", "courage", "resilience"]
+TAGS = [
+    "adventure",
+    "family",
+    "career",
+    "love",
+    "challenge",
+    "growth",
+    "travel",
+    "friendship",
+    "legacy",
+    "identity",
+    "father_figure",
+    "mother_figure",
+    "mentor",
+    "loss",
+    "success",
+    "failure",
+    "humor",
+    "courage",
+    "resilience",
+]
 
 ## TODO IMPLEMENT BETTER PERSONAL ROUTE AND IMPROVE THE OTHER ROUTES.
 ## TODO ALLOW FOR MID CHANGE OF ROUTE IF THE USER WANTS TO SWITCH
@@ -211,7 +230,7 @@ Rules:
 - Encourage storytelling""",
     },
     "SYNTHESIS": {
-    \tory structure and game cards",
+        "description": "Synthesize story structure and game cards",
         "system_instruction": """You are completing a life story interview. The user has answered 6 questions.
 
 Task: Synthesize their story into a structured narrative and a list of game moments.
