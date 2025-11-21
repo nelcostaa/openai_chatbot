@@ -1,9 +1,4 @@
-flask==3.0.0
-flask-cors==4.0.0
-google-generativeai==0.3.2
-python-dotenv==1.0.0
-
-# Testing dependencies
+# Testing dependencies (Flask backend deprecated, use Vercel serverless)
 pytest==7.4.3
 pytest-mock==3.12.0
 
