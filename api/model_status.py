@@ -17,7 +17,7 @@ sys.path.insert(0, str(project_root))
 from api.ai_fallback import get_model_cascade
 
 
-def handler(request):
+def handler(event, context):
     """
     Vercel serverless function handler for model status endpoint.
 
@@ -29,8 +29,11 @@ def handler(request):
         "source": "environment|default"
     }
     """
+    # Get HTTP method
+    method = event.get("httpMethod") or event.get("method", "")
+    
     # Handle CORS preflight
-    if request.get("method") == "OPTIONS":
+    if method == "OPTIONS":
         return {
             "statusCode": 200,
             "headers": {
@@ -42,7 +45,7 @@ def handler(request):
         }
 
     # Only accept GET
-    if request.get("method") != "GET":
+    if method != "GET":
         return {
             "statusCode": 405,
             "headers": {"Content-Type": "application/json"},

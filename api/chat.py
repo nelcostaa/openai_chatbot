@@ -125,7 +125,7 @@ Adapt your questioning style to match this route's approach while maintaining th
     return system_instruction
 
 
-def handler(request):
+def handler(event, context):
     """
     Vercel serverless function handler for chat endpoint.
 
@@ -145,8 +145,11 @@ def handler(request):
         "phase": "current_phase"
     }
     """
+    # Get HTTP method
+    method = event.get("httpMethod") or event.get("method", "")
+    
     # Handle CORS preflight
-    if request.get("method") == "OPTIONS":
+    if method == "OPTIONS":
         return {
             "statusCode": 200,
             "headers": {
@@ -158,7 +161,7 @@ def handler(request):
         }
 
     # Only accept POST
-    if request.get("method") != "POST":
+    if method != "POST":
         return {
             "statusCode": 405,
             "headers": {"Content-Type": "application/json"},
@@ -167,7 +170,7 @@ def handler(request):
 
     try:
         # Parse request body
-        body = request.get("body", "")
+        body = event.get("body", "")
         if isinstance(body, str):
             data = json.loads(body) if body else {}
         else:

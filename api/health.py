@@ -10,7 +10,7 @@ import json
 from datetime import datetime
 
 
-def handler(request):
+def handler(event, context):
     """
     Vercel serverless function handler for health check endpoint.
 
@@ -21,8 +21,11 @@ def handler(request):
         "timestamp": "2025-11-21T12:00:00Z"
     }
     """
+    # Get HTTP method
+    method = event.get("httpMethod") or event.get("method", "")
+    
     # Handle CORS preflight
-    if request.get("method") == "OPTIONS":
+    if method == "OPTIONS":
         return {
             "statusCode": 200,
             "headers": {
