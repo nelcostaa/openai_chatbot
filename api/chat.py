@@ -162,8 +162,9 @@ def get_current_phase_from_route(route, messages: list) -> str:
         return route.phase_order[2] if len(route.phase_order) > 2 else "CHILDHOOD"
     else:
         # Advanced phases - estimate based on message count
-        # Each phase after AGE_SELECTION takes ~1 user message
-        phase_index = min(user_message_count, len(route.phase_order) - 1)
+        # user_message 3 → phase_order[2] (CHILDHOOD)
+        # user_message 4 → phase_order[3] (ADOLESCENCE), etc.
+        phase_index = min(user_message_count - 1, len(route.phase_order) - 1)
         return route.phase_order[phase_index]
 
 
