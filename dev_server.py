@@ -82,6 +82,7 @@ def chat():
         current_phase = validated_data.get("phase")
         age_range = validated_data.get("age_range")
         advance_phase = validated_data.get("advance_phase", False)
+        age_selection_input = validated_data.get("age_selection_input")
 
         # Get route class
         route_class = ROUTE_REGISTRY.get(route_id)
@@ -90,6 +91,13 @@ def chat():
 
         # Reconstruct route state
         route = reconstruct_route_state(route_class, messages, age_range)
+
+        # If age selection input provided, validate and advance phase
+        if age_selection_input and current_phase == "AGE_SELECTION":
+            if route.should_advance(age_selection_input, explicit_transition=False):
+                current_phase = route.advance_phase()
+                print(f"[AGE] Selected: {age_selection_input} -> {route.age_range}")
+                print(f"[PHASE] Advanced to: {current_phase}")
 
         # Get current phase if not provided
         if not current_phase:

@@ -79,6 +79,9 @@ def validate_payload(data: Dict) -> tuple[bool, str, Dict]:
     # Get explicit transition flag (user clicked "Next Phase" button)
     advance_phase = data.get("advance_phase", False)
 
+    # Get age selection input (control code 1-5, not added to message history)
+    age_selection_input = data.get("age_selection_input")
+
     return (
         True,
         "",
@@ -88,6 +91,7 @@ def validate_payload(data: Dict) -> tuple[bool, str, Dict]:
             "phase": phase,
             "age_range": age_range,
             "advance_phase": advance_phase,
+            "age_selection_input": age_selection_input,
         },
     )
 
@@ -224,10 +228,20 @@ class handler(BaseHTTPRequestHandler):
             provided_phase = validated["phase"]
             age_range = validated["age_range"]
             advance_phase = validated["advance_phase"]
+            age_selection_input = validated.get("age_selection_input")
 
             # Instantiate route and reconstruct state
             route_class = ROUTE_REGISTRY[route_id]
             route = reconstruct_route_state(route_class, messages, age_range)
+
+            # If age selection input provided, validate and advance phase
+            if age_selection_input and provided_phase == "AGE_SELECTION":
+                # Validate age selection without it being in message history
+                if route.should_advance(age_selection_input, explicit_transition=False):
+                    current_phase = route.advance_phase()
+                    print(f"[AGE] Selected: {age_selection_input} -> {route.age_range}")
+                    print(f"[PHASE] Advanced to: {current_phase}")
+                    provided_phase = current_phase
 
             # Determine current phase
             if provided_phase:

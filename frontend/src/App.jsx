@@ -52,8 +52,9 @@ function App() {
     setAgeRange(ageMap[ageNumber])
     setShowAgeSelection(false)
 
-    // Send age selection to backend
-    await sendMessage(ageNumber)
+    // Send age selection to backend WITHOUT adding to visible chat
+    // This prevents AI from seeing the control code "5" and misinterpreting it
+    await sendAgeSelection(ageNumber)
   }
 
   // Função que é chamada quando o formulário é enviado
@@ -67,6 +68,60 @@ function App() {
   const handleNextPhase = async () => {
     if (isLoading) return
     await sendMessage('__ADVANCE_PHASE__', true) // true = advancing phase
+  }
+
+  // Send age selection without adding to visible conversation
+  const sendAgeSelection = async (ageNumber) => {
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      // Send to backend with age validation, but don't add to chat history
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: messages,  // Existing messages WITHOUT the age selection number
+          route: selectedRoute,
+          phase: currentPhase,
+          age_range: ageRange,
+          age_selection_input: ageNumber  // Send as metadata, not message content
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        throw new Error(errorData.error || `Error ${response.status}: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+
+      // Update phase from backend
+      if (data.phase && data.phase !== currentPhase) {
+        setCurrentPhase(data.phase)
+        console.log(`[PHASE] Advanced to: ${data.phase}`)
+      }
+
+      // Advance to CHILDHOOD after age selection
+      if (currentPhase === 'AGE_SELECTION') {
+        setCurrentPhase('CHILDHOOD')
+      }
+
+      // Add AI response to chat (AI won't have seen the "5")
+      setMessages([...messages, { role: 'assistant', content: data.response }])
+
+    } catch (err) {
+      console.error('Error calling API:', err)
+      setError(err.message || 'Error connecting to server.')
+      setMessages([
+        ...messages,
+        { role: 'assistant', content: `Sorry, an error occurred: ${err.message || 'Unknown error'}` }
+      ])
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   // Send message to backend
@@ -125,10 +180,8 @@ function App() {
         setShowAgeSelection(true)
       }
 
-      // Advance from AGE_SELECTION to CHILDHOOD when age selected
-      if (currentPhase === 'AGE_SELECTION' && userMessage.trim().match(/^[1-5]$/)) {
-        setCurrentPhase('CHILDHOOD')
-      }
+      // Note: Age selection now handled by sendAgeSelection function
+      // This code path is for manual text input (if user types "5" instead of clicking)
 
       // Adiciona a resposta do assistente
       setMessages([...updatedMessages, { role: 'assistant', content: data.response }])
