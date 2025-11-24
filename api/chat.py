@@ -280,6 +280,7 @@ class handler(BaseHTTPRequestHandler):
 
             # Handle explicit phase advancement if requested
             if advance_phase:
+                old_phase = current_phase
                 route.phase = current_phase
                 # Get last user message for validation
                 last_user_msg = next(
@@ -289,7 +290,16 @@ class handler(BaseHTTPRequestHandler):
                 # Check if should advance (with explicit_transition=True)
                 if route.should_advance(last_user_msg, explicit_transition=True):
                     current_phase = route.advance_phase()
-                    print(f"[PHASE] Advanced to: {current_phase}")
+                    print(f"[PHASE] Advanced from {old_phase} to: {current_phase}")
+
+                    # Add transition marker to messages so AI knows to acknowledge the phase change
+                    # This allows the system instruction's "If user just clicked 'Next Phase'" logic to trigger
+                    messages = messages + [
+                        {
+                            "role": "user",
+                            "content": f"[Moving to next phase: {current_phase}]",
+                        }
+                    ]
 
             # Get system instruction for current phase
             try:

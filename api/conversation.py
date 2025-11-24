@@ -6,12 +6,14 @@ Moved from src.conversation to api.conversation to colocate with serverless func
 from typing import Dict, List, Optional
 
 USER_PROFILE = {
+    "name": "your_name",
+    "country": "your_country",
     "city": "your_city",
     "gender": "your_gender",
     "age": "your_age",
     "audience": "your_audience",
     "tone": "your_tone",
-    "why_story": "your_reason_for_telling_story",
+    "why_story": "your_reason_for_telling_story",  ## (optional) / will improve AI answers
 }
 
 TAGS = [
@@ -34,6 +36,7 @@ TAGS = [
     "humor",
     "courage",
     "resilience",
+    "sadness",
 ]
 
 STORY_ROUTES = {
@@ -55,12 +58,13 @@ STORY_ROUTES = {
         "goal": "Capture individual, high-impact stories, moments, or 'vignettes.'",
         "prompt_focus": "Tell me about a time you laughed until you cried, or the most surprising thing that ever happened to you.",
     },
-    "4": {
-        "name": "Interviewer's Chair",
-        "persona": "Prefers direct, structured questioning (like a journalist asking).",
-        "goal": "Capture responses to pre-set, deep, thought-provoking questions.",
-        "prompt_focus": "Let's begin with Question 1: What is the greatest lesson you learned from your parents or guardians?",
-    },
+    ####  remove latter
+    # "4": {
+    #     "name": "Interviewer's Chair",
+    #     "persona": "Prefers direct, structured questioning (like a journalist asking).",
+    #     "goal": "Capture responses to pre-set, deep, thought-provoking questions.",
+    #     "prompt_focus": "Let's begin with Question 1: What is the greatest lesson you learned from your parents or guardians?",
+    # },
     "5": {
         "name": "Reflective Journaler",
         "persona": "Enjoys personal, introspective writing and self-analysis.",
