@@ -11,6 +11,14 @@ const STORY_ROUTES = {
   "7": { name: "Personal Route", description: "Describe your own approach" },
 }
 
+// Available tags for story themes (matching backend)
+const AVAILABLE_TAGS = [
+  "adventure", "family", "career", "love", "challenge",
+  "growth", "travel", "friendship", "legacy", "identity",
+  "father_figure", "mother_figure", "mentor", "loss",
+  "success", "failure", "humor", "courage", "resilience",
+]
+
 function App() {
   // Estado para armazenar as mensagens do chat
   const [messages, setMessages] = useState([
@@ -34,11 +42,23 @@ function App() {
   const [ageRange, setAgeRange] = useState(null)
   const [showAgeSelection, setShowAgeSelection] = useState(false)
 
+  // Tag selection state
+  const [selectedTags, setSelectedTags] = useState([])
+
   // Define interview phases that allow multi-question conversations
   const INTERVIEW_PHASES = ['CHILDHOOD', 'ADOLESCENCE', 'EARLY_ADULTHOOD', 'MIDLIFE', 'PRESENT']
 
   // Check if current phase is an interview phase (shows "Next Phase" button)
   const isInterviewPhase = INTERVIEW_PHASES.includes(currentPhase)
+
+  // Handle tag selection/deselection
+  const handleTagToggle = (tag) => {
+    setSelectedTags(prev =>
+      prev.includes(tag)
+        ? prev.filter(t => t !== tag)  // Remove if already selected
+        : [...prev, tag]                // Add if not selected
+    )
+  }
 
   // Handle age range selection
   const handleAgeSelect = async (ageNumber) => {
@@ -154,7 +174,8 @@ function App() {
           route: selectedRoute,
           phase: currentPhase,
           age_range: ageRange,
-          advance_phase: advancePhase  // Signal explicit phase transition
+          advance_phase: advancePhase,  // Signal explicit phase transition
+          selected_tags: selectedTags    // User's chosen focus areas
         }),
       })
 
@@ -237,41 +258,84 @@ function App() {
         </div>
       )}
 
-      {/* Área de mensagens - ocupa o espaço disponível */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((msg, index) => (
-          <div
-            key={index}
-            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
+      {/* Main content area - flex container for tags sidebar and messages */}
+      <div className="flex-1 overflow-hidden flex">
+
+        {/* Tag Selection Sidebar */}
+        <div className="w-64 bg-gray-800 border-r border-gray-700 overflow-y-auto p-4 flex flex-col gap-4">
+          {/* Selected Tags Section */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-300 mb-2">Selected Themes ({selectedTags.length})</h3>
+            <div className="flex flex-wrap gap-2 min-h-[60px] p-2 bg-gray-900 rounded border border-gray-600">
+              {selectedTags.length === 0 ? (
+                <div className="text-xs text-gray-500 italic">Click tags below to add focus areas</div>
+              ) : (
+                selectedTags.map(tag => (
+                  <button
+                    key={tag}
+                    onClick={() => handleTagToggle(tag)}
+                    className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
+                  >
+                    {tag} ×
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Available Tags Section */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-300 mb-2">Available Themes</h3>
+            <div className="flex flex-wrap gap-2">
+              {AVAILABLE_TAGS.filter(tag => !selectedTags.includes(tag)).map(tag => (
+                <button
+                  key={tag}
+                  onClick={() => handleTagToggle(tag)}
+                  className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs rounded transition-colors"
+                >
+                  + {tag}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Messages Area */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {messages.map((msg, index) => (
             <div
-              className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${msg.role === 'user'
-                ? 'bg-blue-600'
-                : 'bg-gray-700'
-                }`}
+              key={index}
+              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              <div className="whitespace-pre-wrap break-words">
-                {msg.content}
+              <div
+                className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${msg.role === 'user'
+                  ? 'bg-blue-600'
+                  : 'bg-gray-700'
+                  }`}
+              >
+                <div className="whitespace-pre-wrap break-words">
+                  {msg.content}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          ))}
 
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-gray-700 px-4 py-2 rounded-lg">
-              <span className="animate-pulse">Digitando...</span>
+          {isLoading && (
+            <div className="flex justify-start">
+              <div className="bg-gray-700 px-4 py-2 rounded-lg">
+                <span className="animate-pulse">Digitando...</span>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {error && (
-          <div className="flex justify-center">
-            <div className="bg-red-900 border border-red-700 text-red-200 px-4 py-2 rounded-lg text-sm">
-              {error}
+          {error && (
+            <div className="flex justify-center">
+              <div className="bg-red-900 border border-red-700 text-red-200 px-4 py-2 rounded-lg text-sm">
+                {error}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Next Phase Button - shown during interview phases */}

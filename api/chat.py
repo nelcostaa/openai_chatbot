@@ -82,6 +82,16 @@ def validate_payload(data: Dict) -> tuple[bool, str, Dict]:
     # Get age selection input (control code 1-5, not added to message history)
     age_selection_input = data.get("age_selection_input")
 
+    # Get selected tags (user's chosen focus areas)
+    selected_tags = data.get("selected_tags", [])
+    if not isinstance(selected_tags, list):
+        return False, "selected_tags must be an array", {}
+
+    # Validate tag content (only strings allowed)
+    for tag in selected_tags:
+        if not isinstance(tag, str):
+            return False, "All tags must be strings", {}
+
     return (
         True,
         "",
@@ -92,6 +102,7 @@ def validate_payload(data: Dict) -> tuple[bool, str, Dict]:
             "age_range": age_range,
             "advance_phase": advance_phase,
             "age_selection_input": age_selection_input,
+            "selected_tags": selected_tags,
         },
     )
 
@@ -229,6 +240,7 @@ class handler(BaseHTTPRequestHandler):
             age_range = validated["age_range"]
             advance_phase = validated["advance_phase"]
             age_selection_input = validated.get("age_selection_input")
+            selected_tags = validated.get("selected_tags", [])
 
             # Instantiate route and reconstruct state
             route_class = ROUTE_REGISTRY[route_id]
@@ -275,6 +287,12 @@ class handler(BaseHTTPRequestHandler):
                     },
                 )
                 return
+
+            # Inject selected tags into system instruction if present
+            if selected_tags:
+                tag_context = f"\n\nUSER'S SELECTED FOCUS AREAS: {', '.join(selected_tags)}\n\nThe user has indicated interest in exploring these themes. When appropriate, gently guide the conversation to touch on these topics, but don't force them. Let the natural flow of their story reveal connections to these themes."
+                system_instruction = system_instruction + tag_context
+                print(f"[TAGS] Active themes: {', '.join(selected_tags)}")
 
             # Generate AI response with fallback
             result = run_gemini_fallback(

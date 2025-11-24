@@ -83,6 +83,7 @@ def chat():
         age_range = validated_data.get("age_range")
         advance_phase = validated_data.get("advance_phase", False)
         age_selection_input = validated_data.get("age_selection_input")
+        selected_tags = validated_data.get("selected_tags", [])
 
         # Get route class
         route_class = ROUTE_REGISTRY.get(route_id)
@@ -129,6 +130,12 @@ def chat():
                 ),
                 400,
             )
+
+        # Inject selected tags into system instruction if present
+        if selected_tags:
+            tag_context = f"\n\nUSER'S SELECTED FOCUS AREAS: {', '.join(selected_tags)}\n\nThe user has indicated interest in exploring these themes. When appropriate, gently guide the conversation to touch on these topics, but don't force them. Let the natural flow of their story reveal connections to these themes."
+            system_instruction = system_instruction + tag_context
+            print(f"[TAGS] Active themes: {', '.join(selected_tags)}")
 
         # Generate AI response
         result = run_gemini_fallback(
