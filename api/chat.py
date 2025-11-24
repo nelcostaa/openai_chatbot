@@ -248,12 +248,29 @@ class handler(BaseHTTPRequestHandler):
 
             # If age selection input provided, validate and advance phase
             if age_selection_input and provided_phase == "AGE_SELECTION":
+                # Set route phase to AGE_SELECTION so should_advance works correctly
+                route.phase = "AGE_SELECTION"
                 # Validate age selection without it being in message history
                 if route.should_advance(age_selection_input, explicit_transition=False):
                     current_phase = route.advance_phase()
                     print(f"[AGE] Selected: {age_selection_input} -> {route.age_range}")
                     print(f"[PHASE] Advanced to: {current_phase}")
-                    provided_phase = current_phase
+
+                    # Return immediately without generating AI response
+                    # Age selection is a silent operation - no chat message needed
+                    response_data = {
+                        "response": "",  # Empty response - no AI message
+                        "model": "none",
+                        "attempts": 0,
+                        "phase": current_phase,
+                        "age_range": (
+                            route.get_age_range()
+                            if hasattr(route, "get_age_range")
+                            else None
+                        ),
+                    }
+                    self._send_json_response(200, response_data)
+                    return
 
             # Determine current phase
             if provided_phase:
