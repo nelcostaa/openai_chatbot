@@ -295,44 +295,47 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col">
-      <div className="p-4 border-b border-gray-700">
-        <div className="flex justify-between items-center mb-2">
-          <h1 className="text-2xl font-bold">Life Story Game</h1>
-          {currentPhase !== 'GREETING' && (
-            <div className="text-sm text-gray-400">
-              {ageRange && `Age: ${ageRange.replace('_', ' ')}`}
+      {/* Sticky Navbar - stays visible when scrolling */}
+      <nav className="sticky top-0 z-50 bg-gray-900 border-b border-gray-700 shadow-lg">
+        <div className="p-4">
+          <div className="flex justify-between items-center mb-2">
+            <h1 className="text-2xl font-bold">Life Story Game</h1>
+            {currentPhase !== 'GREETING' && (
+              <div className="text-sm text-gray-400">
+                {ageRange && `Age: ${ageRange.replace('_', ' ')}`}
+              </div>
+            )}
+          </div>
+
+          {/* Phase Timeline */}
+          {phaseOrder.length > 0 && (
+            <div className="flex items-center gap-1 overflow-x-auto pb-2 scrollbar-thin">
+              {phaseOrder.map((phase, idx) => {
+                // Determine status: completed, current, or future
+                let status = 'future'
+                if (idx < phaseIndex) status = 'completed'
+                if (idx === phaseIndex) status = 'current'
+
+                return (
+                  <div key={phase} className="flex items-center shrink-0">
+                    <div className={`
+                      px-3 py-1 rounded-full text-xs font-medium transition-colors
+                      ${status === 'completed' ? 'bg-green-900 text-green-300 border border-green-700' : ''}
+                      ${status === 'current' ? 'bg-blue-600 text-white border border-blue-500 shadow-lg shadow-blue-900/50' : ''}
+                      ${status === 'future' ? 'bg-gray-800 text-gray-500 border border-gray-700' : ''}
+                    `}>
+                      {phase.replace('_', ' ')}
+                    </div>
+                    {idx < phaseOrder.length - 1 && (
+                      <div className={`w-4 h-0.5 mx-1 ${idx < phaseIndex ? 'bg-green-800' : 'bg-gray-800'}`} />
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>
-
-        {/* Phase Timeline */}
-        {phaseOrder.length > 0 && (
-          <div className="flex items-center gap-1 overflow-x-auto pb-2 scrollbar-thin">
-            {phaseOrder.map((phase, idx) => {
-              // Determine status: completed, current, or future
-              let status = 'future'
-              if (idx < phaseIndex) status = 'completed'
-              if (idx === phaseIndex) status = 'current'
-
-              return (
-                <div key={phase} className="flex items-center shrink-0">
-                  <div className={`
-                    px-3 py-1 rounded-full text-xs font-medium transition-colors
-                    ${status === 'completed' ? 'bg-green-900 text-green-300 border border-green-700' : ''}
-                    ${status === 'current' ? 'bg-blue-600 text-white border border-blue-500 shadow-lg shadow-blue-900/50' : ''}
-                    ${status === 'future' ? 'bg-gray-800 text-gray-500 border border-gray-700' : ''}
-                  `}>
-                    {phase.replace('_', ' ')}
-                  </div>
-                  {idx < phaseOrder.length - 1 && (
-                    <div className={`w-4 h-0.5 mx-1 ${idx < phaseIndex ? 'bg-green-800' : 'bg-gray-800'}`} />
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
+      </nav>
 
       {/* Age Selection UI */}
       {showAgeSelection && (
