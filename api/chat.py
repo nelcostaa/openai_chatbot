@@ -82,6 +82,9 @@ def validate_payload(data: Dict) -> tuple[bool, str, Dict]:
     # Get age selection input (control code 1-5, not added to message history)
     age_selection_input = data.get("age_selection_input")
 
+    # Get jump_to_phase (user clicked on a phase in timeline to jump to it)
+    jump_to_phase = data.get("jump_to_phase")
+
     # Get selected tags (user's chosen focus areas)
     selected_tags = data.get("selected_tags", [])
     if not isinstance(selected_tags, list):
@@ -102,6 +105,7 @@ def validate_payload(data: Dict) -> tuple[bool, str, Dict]:
             "age_range": age_range,
             "advance_phase": advance_phase,
             "age_selection_input": age_selection_input,
+            "jump_to_phase": jump_to_phase,
             "selected_tags": selected_tags,
         },
     )
@@ -240,6 +244,7 @@ class handler(BaseHTTPRequestHandler):
             age_range = validated["age_range"]
             advance_phase = validated["advance_phase"]
             age_selection_input = validated.get("age_selection_input")
+            jump_to_phase = validated.get("jump_to_phase")
             selected_tags = validated.get("selected_tags", [])
 
             # Instantiate route and reconstruct state
@@ -284,11 +289,33 @@ class handler(BaseHTTPRequestHandler):
                     self._send_json_response(200, response_data)
                     return
 
-            # Determine current phase
-            if provided_phase:
-                current_phase = provided_phase
+            # Handle phase jump (user clicked on a phase in timeline)
+            if jump_to_phase:
+                # Validate target phase exists in phase order
+                if hasattr(route, "phase_order") and jump_to_phase in route.phase_order:
+                    old_phase = provided_phase or "UNKNOWN"
+                    current_phase = jump_to_phase
+                    route.phase = current_phase
+                    print(f"[PHASE] Jumped from {old_phase} to: {current_phase}")
+
+                    # Add transition marker so AI knows about the jump
+                    messages = messages + [
+                        {
+                            "role": "user",
+                            "content": f"[Jumping to chapter: {current_phase}]",
+                        }
+                    ]
+                else:
+                    self._send_json_response(
+                        400, {"error": f"Invalid phase: {jump_to_phase}"}
+                    )
+                    return
             else:
-                current_phase = get_current_phase_from_route(route, messages)
+                # Determine current phase normally
+                if provided_phase:
+                    current_phase = provided_phase
+                else:
+                    current_phase = get_current_phase_from_route(route, messages)
 
             # Handle explicit phase advancement if requested
             if advance_phase:

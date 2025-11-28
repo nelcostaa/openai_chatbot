@@ -83,6 +83,7 @@ def chat():
         age_range = validated_data.get("age_range")
         advance_phase = validated_data.get("advance_phase", False)
         age_selection_input = validated_data.get("age_selection_input")
+        jump_to_phase = validated_data.get("jump_to_phase")
         selected_tags = validated_data.get("selected_tags", [])
 
         # Get route class
@@ -129,9 +130,28 @@ def chat():
 
                 return jsonify(response_data), 200
 
-        # Get current phase if not provided
-        if not current_phase:
-            current_phase = get_current_phase_from_route(route, messages)
+        # Handle phase jump (user clicked on a phase in timeline)
+        if jump_to_phase:
+            # Validate target phase exists in phase order
+            if hasattr(route, "phase_order") and jump_to_phase in route.phase_order:
+                old_phase = current_phase or "UNKNOWN"
+                current_phase = jump_to_phase
+                route.phase = current_phase
+                print(f"[PHASE] Jumped from {old_phase} to: {current_phase}")
+
+                # Add transition marker so AI knows about the jump
+                messages = messages + [
+                    {
+                        "role": "user",
+                        "content": f"[Jumping to chapter: {current_phase}]",
+                    }
+                ]
+            else:
+                return jsonify({"error": f"Invalid phase: {jump_to_phase}"}), 400
+        else:
+            # Get current phase if not provided
+            if not current_phase:
+                current_phase = get_current_phase_from_route(route, messages)
 
         # Handle explicit phase advancement if requested
         if advance_phase:

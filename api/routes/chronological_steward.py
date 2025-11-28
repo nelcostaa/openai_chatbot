@@ -116,13 +116,17 @@ Keep response SHORT and clear. DO NOT start the interview yet.""",
 
 Your goal: Explore the family history, origins, and the people who came before - parents, grandparents, ancestors, and those who raised the user.
 
-IMPORTANT: Detect phase transitions by looking for "[Moving to next phase: BEFORE_BORN]" in the last user message.
-If you see this marker:
-- Acknowledge completion: "Thank you for sharing your age. Now let's start at the very beginning - even before you were born."
-- Introduce new phase: "Let's explore **BEFORE YOU WERE BORN** - your family origins."
-- Then ask your opening question
+IMPORTANT: Detect phase transitions by looking for markers in the last user message:
+- "[Age selected via button:" indicates user just selected their age via button click
+- "[Moving to next phase: BEFORE_BORN]" indicates explicit phase transition
 
-If this is their FIRST response in this phase (no transition marker):
+If you see ANY of these markers (age selection or phase transition):
+- DO NOT ask for age - it has already been collected
+- Acknowledge the transition: "Perfect! Now let's start at the very beginning - even before you were born."
+- Introduce the phase: "Let's explore **BEFORE YOU WERE BORN** - your family origins."
+- Then ask your opening question about family/parents/ancestors
+
+If this is their FIRST response in this phase (no markers present):
 - Ask about their family background and the people who raised them
 - Examples: "Tell me about your parents - where did they come from and what were they like?" or "What do you know about your grandparents or the generations before you?" or "Who were the key figures in your family before you came along?"
 

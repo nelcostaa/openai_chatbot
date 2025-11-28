@@ -98,6 +98,70 @@ function App() {
     await sendMessage('__ADVANCE_PHASE__', true) // true = advancing phase
   }
 
+  // Handle clicking on a phase in the timeline to jump to it
+  const handlePhaseClick = async (targetPhase) => {
+    // Don't allow jumping to current phase
+    if (targetPhase === currentPhase) return
+
+    // Don't allow jumping to GREETING or AGE_SELECTION (setup phases)
+    if (targetPhase === 'GREETING' || targetPhase === 'AGE_SELECTION') return
+
+    // Don't allow jumping if age not selected yet
+    if (!ageRange) return
+
+    // Don't allow jumping while loading
+    if (isLoading) return
+
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: messages,
+          route: selectedRoute,
+          phase: currentPhase,
+          age_range: ageRange,
+          jump_to_phase: targetPhase,
+          selected_tags: selectedTags
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        throw new Error(errorData.error || `Error ${response.status}: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+
+      // Update phase state
+      if (data.phase) {
+        setCurrentPhase(data.phase)
+        console.log(`[PHASE] Jumped to: ${data.phase}`)
+      }
+      if (data.phase_order) {
+        setPhaseOrder(data.phase_order)
+      }
+      if (data.phase_index !== undefined) {
+        setPhaseIndex(data.phase_index)
+      }
+
+      // Add AI response to messages
+      if (data.response && data.response.trim()) {
+        const newMsgs = [...messages, { role: 'assistant', content: data.response }]
+        setMessages(newMsgs)
+        fetchSummary(newMsgs)
+      }
+    } catch (err) {
+      console.error('Phase jump failed:', err)
+      setError(err.message || 'Failed to jump to phase')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   // Fetch story summary from backend
   const fetchSummary = async (currentMessages) => {
     // Don't summarize if only greeting
@@ -167,16 +231,26 @@ function App() {
       // After successful age selection, get opening prompt for new phase
       // Backend returns empty response for age selection, so we need a second call
       if (newPhase && newPhase !== 'AGE_SELECTION' && (!data.response || !data.response.trim())) {
-        // Make second API call to get opening prompt for CHILDHOOD
+        // Build messages with transition marker so AI knows age was selected via button
+        // This prevents AI from asking for age again
+        const messagesWithMarker = [
+          ...messages,
+          {
+            role: 'user',
+            content: `[Age selected via button: ${newAgeRange}. Moving to phase: ${newPhase}]`
+          }
+        ]
+
+        // Make second API call to get opening prompt for new phase
         const promptResponse = await fetch('/api/chat', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            messages: messages,  // Current messages (greeting + "yes")
+            messages: messagesWithMarker,  // Messages WITH transition marker
             route: selectedRoute,
-            phase: newPhase,  // Use new phase (CHILDHOOD)
+            phase: newPhase,  // Use new phase (BEFORE_BORN)
             age_range: newAgeRange,  // Use newly selected age range
             selected_tags: selectedTags
           }),
@@ -307,7 +381,7 @@ function App() {
             )}
           </div>
 
-          {/* Phase Timeline */}
+          {/* Phase Timeline - Clickable phases for navigation */}
           {phaseOrder.length > 0 && (
             <div className="flex items-center gap-1 overflow-x-auto pb-2 scrollbar-thin">
               {phaseOrder.map((phase, idx) => {
@@ -316,18 +390,53 @@ function App() {
                 if (idx < phaseIndex) status = 'completed'
                 if (idx === phaseIndex) status = 'current'
 
+                // Check if phase is clickable (not GREETING, AGE_SELECTION, and age is selected)
+                const isClickable = phase !== 'GREETING' && phase !== 'AGE_SELECTION' && ageRange && phase !== currentPhase
+
                 return (
                   <div key={phase} className="flex items-center shrink-0">
-                    <div className={`
-                      px-3 py-1 rounded-full text-xs font-medium transition-colors
-                      ${status === 'completed' ? 'bg-green-900 text-green-300 border border-green-700' : ''}
-                      ${status === 'current' ? 'bg-blue-600 text-white border border-blue-500 shadow-lg shadow-blue-900/50' : ''}
-                      ${status === 'future' ? 'bg-gray-800 text-gray-500 border border-gray-700' : ''}
-                    `}>
-                      {phase.replace('_', ' ')}
-                    </div>
+                    {isClickable ? (
+                      <button
+                        onClick={() => handlePhaseClick(phase)}
+                        disabled={isLoading}
+                        aria-label={`Jump to ${phase.replace('_', ' ')} phase`}
+                        className={`
+                          px-3 py-1 rounded-full text-xs font-medium transition-all
+                          focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900
+                          ${status === 'completed'
+                            ? 'bg-green-700 text-green-100 border border-green-600 hover:bg-green-600 focus:ring-green-500 cursor-pointer'
+                            : ''}
+                          ${status === 'current'
+                            ? 'bg-blue-600 text-white border border-blue-500 shadow-lg shadow-blue-900/50'
+                            : ''}
+                          ${status === 'future'
+                            ? 'bg-gray-700 text-gray-300 border border-gray-600 hover:bg-gray-600 focus:ring-gray-500 cursor-pointer'
+                            : ''}
+                          ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}
+                        `}
+                      >
+                        <span className="flex items-center gap-1">
+                          {status === 'completed' && <span>✓</span>}
+                          {phase.replace('_', ' ')}
+                        </span>
+                      </button>
+                    ) : (
+                      <div className={`
+                        px-3 py-1 rounded-full text-xs font-medium transition-colors
+                        ${status === 'completed' ? 'bg-green-900 text-green-300 border border-green-700' : ''}
+                        ${status === 'current' ? 'bg-blue-600 text-white border border-blue-500 shadow-lg shadow-blue-900/50' : ''}
+                        ${status === 'future' ? 'bg-gray-800 text-gray-500 border border-gray-700' : ''}
+                        ${phase === 'GREETING' || phase === 'AGE_SELECTION' ? 'opacity-50' : ''}
+                      `}>
+                        <span className="flex items-center gap-1">
+                          {status === 'completed' && <span>✓</span>}
+                          {status === 'current' && <span className="inline-block w-2 h-2 bg-white rounded-full animate-pulse mr-1"></span>}
+                          {phase.replace('_', ' ')}
+                        </span>
+                      </div>
+                    )}
                     {idx < phaseOrder.length - 1 && (
-                      <div className={`w-4 h-0.5 mx-1 ${idx < phaseIndex ? 'bg-green-800' : 'bg-gray-800'}`} />
+                      <div className={`w-4 h-0.5 mx-1 ${idx < phaseIndex ? 'bg-green-600' : 'bg-gray-700'}`} />
                     )}
                   </div>
                 )
