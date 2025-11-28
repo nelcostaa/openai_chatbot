@@ -45,6 +45,7 @@ function App() {
   // Tag selection state
   const [selectedTags, setSelectedTags] = useState([])
   const [customThemeInput, setCustomThemeInput] = useState('')
+  const [addressedThemes, setAddressedThemes] = useState([])  // Themes already covered in conversation
 
   // Estado para o resumo da história
   const [storySummary, setStorySummary] = useState("No story details shared yet.")
@@ -142,7 +143,8 @@ function App() {
           phase: currentPhase,
           age_range: ageRange,
           jump_to_phase: targetPhase,
-          selected_tags: selectedTags
+          selected_tags: selectedTags,
+          addressed_themes: addressedThemes
         }),
       })
 
@@ -152,6 +154,11 @@ function App() {
       }
 
       const data = await response.json()
+
+      // Update addressed themes if new ones were detected
+      if (data.newly_addressed_themes && data.newly_addressed_themes.length > 0) {
+        setAddressedThemes(prev => [...new Set([...prev, ...data.newly_addressed_themes])])
+      }
 
       // Update phase state
       if (data.phase) {
@@ -269,12 +276,17 @@ function App() {
             route: selectedRoute,
             phase: newPhase,  // Use new phase (FAMILY_HISTORY)
             age_range: newAgeRange,  // Use newly selected age range
-            selected_tags: selectedTags
+            selected_tags: selectedTags,
+            addressed_themes: addressedThemes
           }),
         })
 
         if (promptResponse.ok) {
           const promptData = await promptResponse.json()
+          // Update addressed themes if new ones were detected
+          if (promptData.newly_addressed_themes && promptData.newly_addressed_themes.length > 0) {
+            setAddressedThemes(prev => [...new Set([...prev, ...promptData.newly_addressed_themes])])
+          }
           if (promptData.response && promptData.response.trim()) {
             const newMsgs = [...messages, { role: 'assistant', content: promptData.response }]
             setMessages(newMsgs)
@@ -331,7 +343,8 @@ function App() {
           phase: currentPhase,
           age_range: ageRange,
           advance_phase: advancePhase,  // Signal explicit phase transition
-          selected_tags: selectedTags    // User's chosen focus areas
+          selected_tags: selectedTags,   // User's chosen focus areas
+          addressed_themes: addressedThemes  // Themes already covered
         }),
       })
 
@@ -341,6 +354,12 @@ function App() {
       }
 
       const data = await response.json()
+
+      // Update addressed themes if new ones were detected
+      if (data.newly_addressed_themes && data.newly_addressed_themes.length > 0) {
+        setAddressedThemes(prev => [...new Set([...prev, ...data.newly_addressed_themes])])
+        console.log(`[THEMES] Newly addressed: ${data.newly_addressed_themes.join(', ')}`)
+      }
 
       // Update phase from backend response (backend handles advancement)
       if (data.phase_order) setPhaseOrder(data.phase_order)
@@ -493,22 +512,35 @@ function App() {
 
         {/* Tag Selection Sidebar */}
         <div className="w-64 bg-gray-800 border-r border-gray-700 overflow-y-auto p-4 flex flex-col gap-4">
-          {/* Selected Tags Section */}
+          {/* Selected Tags Section with Progress */}
           <div>
-            <h3 className="text-sm font-semibold text-gray-300 mb-2">Selected Themes ({selectedTags.length})</h3>
+            <h3 className="text-sm font-semibold text-gray-300 mb-1">Story Themes</h3>
+            {selectedTags.length > 0 && (
+              <div className="text-xs text-gray-500 mb-2">
+                {addressedThemes.filter(t => selectedTags.includes(t)).length} of {selectedTags.length} addressed
+              </div>
+            )}
             <div className="flex flex-wrap gap-2 min-h-[60px] p-2 bg-gray-900 rounded border border-gray-600">
               {selectedTags.length === 0 ? (
                 <div className="text-xs text-gray-500 italic">Click tags below to add focus areas</div>
               ) : (
-                selectedTags.map(tag => (
-                  <button
-                    key={tag}
-                    onClick={() => handleTagToggle(tag)}
-                    className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
-                  >
-                    {tag} ×
-                  </button>
-                ))
+                selectedTags.map(tag => {
+                  const isAddressed = addressedThemes.includes(tag)
+                  return (
+                    <button
+                      key={tag}
+                      onClick={() => handleTagToggle(tag)}
+                      className={`px-2 py-1 text-xs rounded transition-colors flex items-center gap-1 ${isAddressed
+                          ? 'bg-green-700 hover:bg-green-800 text-white'
+                          : 'bg-blue-600 hover:bg-blue-700 text-white'
+                        }`}
+                      title={isAddressed ? 'Theme addressed in conversation' : 'Theme pending'}
+                    >
+                      {isAddressed && <span>&#10003;</span>}
+                      {tag} ×
+                    </button>
+                  )
+                })
               )}
             </div>
           </div>

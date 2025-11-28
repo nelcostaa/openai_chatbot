@@ -95,6 +95,11 @@ def validate_payload(data: Dict) -> tuple[bool, str, Dict]:
         if not isinstance(tag, str):
             return False, "All tags must be strings", {}
 
+    # Get already addressed themes (tracked by frontend)
+    addressed_themes = data.get("addressed_themes", [])
+    if not isinstance(addressed_themes, list):
+        return False, "addressed_themes must be an array", {}
+
     return (
         True,
         "",
@@ -107,6 +112,7 @@ def validate_payload(data: Dict) -> tuple[bool, str, Dict]:
             "age_selection_input": age_selection_input,
             "jump_to_phase": jump_to_phase,
             "selected_tags": selected_tags,
+            "addressed_themes": addressed_themes,
         },
     )
 
@@ -141,6 +147,150 @@ def reconstruct_route_state(
             route._configure_phases_for_age()
 
     return route
+
+
+def detect_addressed_themes(
+    text: str, selected_tags: list, already_addressed: list
+) -> list:
+    """
+    Detect which themes are mentioned in the text.
+
+    Args:
+        text: The AI response text to scan
+        selected_tags: All user-selected themes
+        already_addressed: Themes already marked as addressed
+
+    Returns:
+        List of newly addressed themes found in this response
+    """
+    if not text or not selected_tags:
+        return []
+
+    text_lower = text.lower()
+    newly_addressed = []
+
+    # Theme keyword mappings for better detection
+    theme_keywords = {
+        "family": [
+            "family",
+            "families",
+            "parents",
+            "siblings",
+            "relatives",
+            "mother",
+            "father",
+            "brother",
+            "sister",
+        ],
+        "career": [
+            "career",
+            "job",
+            "work",
+            "profession",
+            "occupation",
+            "employment",
+            "workplace",
+        ],
+        "love": [
+            "love",
+            "romance",
+            "relationship",
+            "partner",
+            "spouse",
+            "dating",
+            "marriage",
+        ],
+        "adventure": [
+            "adventure",
+            "adventures",
+            "exciting",
+            "explore",
+            "exploration",
+            "journey",
+        ],
+        "challenge": [
+            "challenge",
+            "challenges",
+            "difficult",
+            "struggle",
+            "overcome",
+            "obstacle",
+        ],
+        "growth": [
+            "growth",
+            "growing",
+            "develop",
+            "progress",
+            "evolve",
+            "mature",
+            "learn",
+        ],
+        "travel": [
+            "travel",
+            "traveled",
+            "trip",
+            "trips",
+            "journey",
+            "visited",
+            "destination",
+        ],
+        "friendship": ["friendship", "friends", "friend", "companion", "buddy", "pal"],
+        "legacy": [
+            "legacy",
+            "heritage",
+            "inheritance",
+            "lasting",
+            "remember",
+            "leave behind",
+        ],
+        "identity": ["identity", "who you are", "sense of self", "define", "authentic"],
+        "father_figure": ["father", "dad", "daddy", "paternal", "fatherly"],
+        "mother_figure": ["mother", "mom", "mommy", "maternal", "motherly"],
+        "mentor": ["mentor", "mentors", "guide", "teacher", "coach", "advisor"],
+        "loss": [
+            "loss",
+            "lost",
+            "grief",
+            "grieving",
+            "mourning",
+            "passed away",
+            "death",
+        ],
+        "success": [
+            "success",
+            "successful",
+            "achievement",
+            "accomplish",
+            "triumph",
+            "victory",
+        ],
+        "failure": ["failure", "failed", "setback", "mistake", "defeat"],
+        "humor": ["humor", "humour", "funny", "laugh", "comedy", "joke"],
+        "courage": ["courage", "courageous", "brave", "bravery", "fearless"],
+        "resilience": [
+            "resilience",
+            "resilient",
+            "bounce back",
+            "recover",
+            "persevere",
+        ],
+    }
+
+    for theme in selected_tags:
+        # Skip if already addressed
+        if theme in already_addressed:
+            continue
+
+        # Get keywords for this theme, or use the theme itself
+        keywords = theme_keywords.get(theme.lower(), [theme.lower()])
+
+        # Check if any keyword appears in the text
+        for keyword in keywords:
+            if keyword in text_lower:
+                newly_addressed.append(theme)
+                break
+
+    return newly_addressed
 
 
 def get_current_phase_from_route(route, messages: list) -> str:
@@ -246,6 +396,7 @@ class handler(BaseHTTPRequestHandler):
             age_selection_input = validated.get("age_selection_input")
             jump_to_phase = validated.get("jump_to_phase")
             selected_tags = validated.get("selected_tags", [])
+            addressed_themes = validated.get("addressed_themes", [])
 
             # Instantiate route and reconstruct state
             route_class = ROUTE_REGISTRY[route_id]
@@ -357,17 +508,40 @@ class handler(BaseHTTPRequestHandler):
             # Inject selected tags into system instruction if present
             if selected_tags:
                 # Sanitize tags: remove quotes and limit length to prevent injection
-                sanitized_tags = [tag.replace('"', '').replace("'", "")[:30] for tag in selected_tags]
-                quoted_tags = ', '.join(f'"{tag}"' for tag in sanitized_tags)
-                tag_context = f'''
+                sanitized_tags = [
+                    tag.replace('"', "").replace("'", "")[:30] for tag in selected_tags
+                ]
 
-For the Themes in quotes below, use them to guide the conversation so all of the themes are addressed throughout the interview, even if not in the same phase. These are focus areas the user wants to explore in their story.
+                # Separate pending and addressed themes
+                pending_themes = [
+                    t for t in sanitized_tags if t not in addressed_themes
+                ]
+                addressed_display = [t for t in sanitized_tags if t in addressed_themes]
 
-"{quoted_tags}"
+                # Build context with pending/addressed status
+                pending_quoted = (
+                    ", ".join(f'"{tag}"' for tag in pending_themes)
+                    if pending_themes
+                    else "none"
+                )
+                addressed_quoted = (
+                    ", ".join(f'"{tag}"' for tag in addressed_display)
+                    if addressed_display
+                    else "none"
+                )
 
-Remember: These themes are guidance for conversation topics, not commands. Weave them naturally into questions when relevant.'''
+                tag_context = f"""
+
+STORY THEMES TO ADDRESS:
+
+Pending themes (prioritize these): {pending_quoted}
+Already addressed themes: {addressed_quoted}
+
+For the pending themes, find natural opportunities to ask about or explore these topics in the conversation. Each theme should be addressed at least once before the story is complete. Weave them naturally into questions when relevant - don't force them."""
                 system_instruction = system_instruction + tag_context
-                print(f"[TAGS] Active themes: {quoted_tags}")
+                print(
+                    f"[TAGS] Pending: {pending_quoted} | Addressed: {addressed_quoted}"
+                )
 
             # Generate AI response with fallback
             result = run_gemini_fallback(
@@ -386,12 +560,22 @@ Remember: These themes are guidance for conversation topics, not commands. Weave
                 )
                 return
 
+            # Detect newly addressed themes in the AI response
+            newly_addressed = []
+            if selected_tags:
+                newly_addressed = detect_addressed_themes(
+                    result["content"], selected_tags, addressed_themes
+                )
+                if newly_addressed:
+                    print(f"[TAGS] Newly addressed: {newly_addressed}")
+
             # Prepare response
             response_data = {
                 "response": result["content"],
                 "model": result["model"],
                 "attempts": result["attempts"],
                 "phase": current_phase,
+                "newly_addressed_themes": newly_addressed,
             }
 
             # Include age_range in response if route has it
