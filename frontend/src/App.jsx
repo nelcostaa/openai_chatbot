@@ -51,6 +51,11 @@ function App() {
   const [storySummary, setStorySummary] = useState("No story details shared yet.")
   const [isSummarizing, setIsSummarizing] = useState(false)
 
+  // Chapter selection state for per-chapter summary feature
+  const [selectedChapters, setSelectedChapters] = useState([])
+  const [chapterSummaryError, setChapterSummaryError] = useState(null)
+  const [isChapterDropdownOpen, setIsChapterDropdownOpen] = useState(false)
+
   // Phase timeline state
   const [phaseOrder, setPhaseOrder] = useState([])
   const [phaseIndex, setPhaseIndex] = useState(-1)
@@ -58,8 +63,45 @@ function App() {
   // Define interview phases that allow multi-question conversations
   const INTERVIEW_PHASES = ['FAMILY_HISTORY', 'CHILDHOOD', 'ADOLESCENCE', 'EARLY_ADULTHOOD', 'MIDLIFE', 'PRESENT']
 
+  // Human-readable display names for phases
+  const PHASE_DISPLAY_NAMES = {
+    'FAMILY_HISTORY': 'Family History',
+    'CHILDHOOD': 'Childhood',
+    'ADOLESCENCE': 'Adolescence',
+    'EARLY_ADULTHOOD': 'Early Adulthood',
+    'MIDLIFE': 'Midlife',
+    'PRESENT': 'Present Day',
+  }
+
   // Check if current phase is an interview phase (shows "Next Phase" button)
   const isInterviewPhase = INTERVIEW_PHASES.includes(currentPhase)
+
+  // Get available chapters based on current phaseOrder (excludes GREETING, AGE_SELECTION, SYNTHESIS)
+  const getAvailableChapters = () => {
+    if (phaseOrder.length === 0) {
+      return INTERVIEW_PHASES
+    }
+    return phaseOrder.filter(phase => INTERVIEW_PHASES.includes(phase))
+  }
+
+  // Handle chapter selection/deselection for summary
+  const handleChapterToggle = (chapter) => {
+    setSelectedChapters(prev =>
+      prev.includes(chapter)
+        ? prev.filter(c => c !== chapter)
+        : [...prev, chapter]
+    )
+  }
+
+  // Select all available chapters
+  const handleSelectAllChapters = () => {
+    setSelectedChapters(getAvailableChapters())
+  }
+
+  // Clear all chapter selections
+  const handleClearAllChapters = () => {
+    setSelectedChapters([])
+  }
 
   // Handle tag selection/deselection
   const handleTagToggle = (tag) => {
@@ -187,16 +229,23 @@ function App() {
   }
 
   // Fetch story summary from backend
-  const fetchSummary = async (currentMessages) => {
-    // Don't summarize if only greeting
-    if (currentMessages.length <= 2) return
+  const fetchSummary = async (currentMessages, phases = null) => {
+    // Don't auto-summarize if only greeting (but allow manual chapter summary generation)
+    if (currentMessages.length <= 2 && !phases) return
 
     setIsSummarizing(true)
+    setChapterSummaryError(null)
+
     try {
+      const requestBody = { messages: currentMessages }
+      if (phases && phases.length > 0) {
+        requestBody.phases = phases
+      }
+
       const response = await fetch('/api/summary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: currentMessages }),
+        body: JSON.stringify(requestBody),
       })
 
       if (response.ok) {
@@ -204,12 +253,22 @@ function App() {
         if (data.summary) {
           setStorySummary(data.summary)
         }
+      } else {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        setChapterSummaryError(errorData.error || 'Failed to generate summary')
       }
     } catch (err) {
       console.error("Failed to fetch summary:", err)
+      setChapterSummaryError('Failed to generate summary')
     } finally {
       setIsSummarizing(false)
     }
+  }
+
+  // Generate chapter-specific summary
+  const handleGenerateChapterSummary = async () => {
+    if (selectedChapters.length === 0) return
+    await fetchSummary(messages, selectedChapters)
   }
 
   // Send age selection without adding to visible conversation
@@ -622,7 +681,97 @@ function App() {
         </div>
 
         {/* Right Sidebar - User Story Summary */}
-        <div className="w-80 bg-gray-800 border-l border-gray-700 overflow-y-auto p-4 flex flex-col gap-4 hidden lg:flex">
+        <div className="w-80 bg-gray-800 border-l border-gray-700 overflow-y-auto p-4 flex-col gap-4 flex" data-testid="summary-sidebar">
+          {/* Chapter Selection Dropdown for Per-Chapter Summary */}
+          <div data-testid="chapter-select-dropdown" className="relative">
+            <h3 className="text-sm font-semibold text-gray-300 mb-2">Select Chapters</h3>
+            <p className="text-xs text-gray-500 mb-3">Choose which chapters to include in summary</p>
+
+            {/* Dropdown Toggle Button */}
+            <button
+              data-testid="chapter-dropdown-toggle"
+              onClick={() => setIsChapterDropdownOpen(!isChapterDropdownOpen)}
+              className="w-full flex items-center justify-between px-3 py-2 bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded-lg transition-colors text-sm"
+            >
+              <span className="text-gray-300">
+                {selectedChapters.length === 0 
+                  ? 'Select chapters...' 
+                  : `${selectedChapters.length} chapter${selectedChapters.length !== 1 ? 's' : ''} selected`
+                }
+              </span>
+              <svg 
+                className={`w-4 h-4 text-gray-400 transition-transform ${isChapterDropdownOpen ? 'rotate-180' : ''}`}
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {/* Dropdown Menu Content */}
+            {isChapterDropdownOpen && (
+              <div className="absolute z-10 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg">
+                {/* Select All / Clear All Buttons */}
+                <div className="flex gap-2 p-2 border-b border-gray-600">
+                  <button
+                    data-testid="select-all-chapters-btn"
+                    onClick={handleSelectAllChapters}
+                    className="flex-1 px-2 py-1 text-xs bg-gray-600 hover:bg-gray-500 rounded transition-colors"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    data-testid="clear-all-chapters-btn"
+                    onClick={handleClearAllChapters}
+                    className="flex-1 px-2 py-1 text-xs bg-gray-600 hover:bg-gray-500 rounded transition-colors"
+                  >
+                    Clear All
+                  </button>
+                </div>
+
+                {/* Chapter Checkboxes */}
+                <div className="max-h-48 overflow-y-auto p-2 space-y-1">
+                  {getAvailableChapters().map((chapter) => (
+                    <label
+                      key={chapter}
+                      data-testid={`chapter-option-${chapter}`}
+                      className="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-gray-600 transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        data-testid={`chapter-checkbox-${chapter}`}
+                        checked={selectedChapters.includes(chapter)}
+                        onChange={() => handleChapterToggle(chapter)}
+                        className="w-4 h-4 rounded border-gray-500 bg-gray-600 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-700"
+                      />
+                      <span className="text-sm text-gray-300">
+                        {PHASE_DISPLAY_NAMES[chapter] || chapter}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Generate Summary Button */}
+            <button
+              data-testid="generate-chapter-summary-btn"
+              onClick={handleGenerateChapterSummary}
+              disabled={selectedChapters.length === 0 || isSummarizing}
+              className="w-full mt-3 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded text-sm font-medium transition-colors"
+            >
+              {isSummarizing ? (
+                'Generating summary...'
+              ) : selectedChapters.length === 0 ? (
+                'Select chapters to summarize'
+              ) : (
+                `Generate Summary (${selectedChapters.length} chapter${selectedChapters.length !== 1 ? 's' : ''})`
+              )}
+            </button>
+          </div>
+
+          {/* Summary Display */}
           <div>
             <h3 className="text-sm font-semibold text-gray-300 mb-2">Chapter Summary</h3>
             <p className="text-xs text-gray-500 mb-4">Live narrative of your journey so far</p>
@@ -631,6 +780,10 @@ function App() {
               {isSummarizing ? (
                 <div className="flex items-center justify-center h-full text-gray-500 text-xs animate-pulse">
                   Updating story...
+                </div>
+              ) : chapterSummaryError ? (
+                <div className="text-sm text-red-400">
+                  Failed to generate summary: {chapterSummaryError}
                 </div>
               ) : (
                 <div className="text-sm text-gray-300 font-serif leading-relaxed whitespace-pre-wrap">

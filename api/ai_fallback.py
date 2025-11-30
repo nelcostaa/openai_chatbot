@@ -11,12 +11,108 @@ Key features:
 - Configurable timeout per model attempt
 - Comprehensive error logging
 - Returns structured response with metadata
+- Per-chapter summary filtering by interview phases
 """
 
 import os
+import re
 from typing import Dict, List, Optional
 
 import google.generativeai as genai
+
+# ============================================================
+# Phase Constants for Per-Chapter Summary Feature
+# ============================================================
+
+# Valid interview phases that can be summarized
+# Excludes setup phases (GREETING, AGE_SELECTION) and end phases (SYNTHESIS)
+INTERVIEW_PHASES = [
+    "FAMILY_HISTORY",
+    "CHILDHOOD",
+    "ADOLESCENCE",
+    "EARLY_ADULTHOOD",
+    "MIDLIFE",
+    "PRESENT",
+]
+
+# Human-readable display names for UI
+PHASE_DISPLAY_NAMES = {
+    "FAMILY_HISTORY": "Family History",
+    "CHILDHOOD": "Childhood",
+    "ADOLESCENCE": "Adolescence",
+    "EARLY_ADULTHOOD": "Early Adulthood",
+    "MIDLIFE": "Midlife",
+    "PRESENT": "Present Day",
+}
+
+
+# ============================================================
+# Message Filtering for Per-Chapter Summaries
+# ============================================================
+
+
+def filter_messages_by_phases(
+    messages: List[Dict[str, str]], phases: List[str]
+) -> List[Dict[str, str]]:
+    """
+    Filter conversation messages to only include content from selected phases.
+
+    Messages are grouped by phase transition markers in the format:
+    "[Moving to next phase: PHASE_NAME]"
+
+    Args:
+        messages: Full conversation history with role and content keys
+        phases: List of phase identifiers to include (e.g., ["CHILDHOOD", "ADOLESCENCE"])
+
+    Returns:
+        Filtered list of messages containing only content from selected phases.
+        Phase transition markers are excluded from the result.
+
+    Raises:
+        TypeError: If messages is None
+        ValueError: If messages is not a list
+    """
+    if messages is None:
+        raise TypeError("messages cannot be None")
+
+    if not isinstance(messages, list):
+        raise ValueError("messages must be a list")
+
+    if not messages:
+        return []
+
+    if not phases:
+        return []
+
+    # Normalize phases to uppercase for comparison
+    normalized_phases = [p.upper() for p in phases]
+
+    # Regex to detect phase transition markers
+    phase_marker_pattern = re.compile(
+        r"\[Moving to next phase:\s*([A-Z_]+)\]", re.IGNORECASE
+    )
+
+    # Track current phase as we iterate through messages
+    current_phase = None
+    filtered_messages = []
+
+    for msg in messages:
+        content = msg.get("content", "")
+
+        # Check if this message is a phase transition marker
+        marker_match = phase_marker_pattern.search(content)
+
+        if marker_match:
+            # Update current phase from marker
+            current_phase = marker_match.group(1).upper()
+            # Don't include transition markers in output
+            continue
+
+        # Include message if we're in a selected phase
+        if current_phase and current_phase in normalized_phases:
+            filtered_messages.append({"role": msg.get("role"), "content": content})
+
+    return filtered_messages
 
 
 def configure_gemini(api_key: Optional[str] = None) -> None:
@@ -243,6 +339,7 @@ def run_gemini_fallback(
 
 def generate_summary(
     messages: List[Dict[str, str]],
+    phases: Optional[List[str]] = None,
     models: Optional[List[str]] = None,
     api_key: Optional[str] = None,
 ) -> Dict:
@@ -251,15 +348,43 @@ def generate_summary(
 
     Args:
         messages: Full conversation history
+        phases: Optional list of phase identifiers to summarize. If provided,
+                only messages from those phases will be included in the summary.
+                If None or empty, summarizes the entire conversation.
         models: Optional list of models to try
         api_key: Optional API key
 
     Returns:
-        Dict with keys: success, content (summary), model, error
+        Dict with keys: success, content (summary), model, error, phases_summarized
     """
+    # If phases specified, filter messages first
+    messages_to_summarize = messages
+    phases_summarized = None
+
+    if phases:
+        messages_to_summarize = filter_messages_by_phases(messages, phases)
+        phases_summarized = phases
+
+        # Handle case where no messages match selected phases
+        if not messages_to_summarize:
+            return {
+                "success": True,
+                "content": "No story content found for the selected chapters.",
+                "model": None,
+                "error": None,
+                "phases_summarized": phases_summarized,
+            }
+
+    # Build phase context for the prompt if specific phases selected
+    phase_context = ""
+    if phases:
+        phase_names = [PHASE_DISPLAY_NAMES.get(p, p) for p in phases]
+        phase_context = f"Focus specifically on the following life chapters: {', '.join(phase_names)}. "
+
     system_instruction = (
         "You are a biographer's assistant. Your task is to read the conversation history "
         "and produce a concise, narrative summary of the user's life story as revealed so far. "
+        f"{phase_context}"
         "Focus on facts, key events, and emotional themes. "
         "Do NOT include the interviewer's questions or the process itself. "
         "Write in the third person (e.g., 'The user grew up in...'). "
@@ -267,13 +392,14 @@ def generate_summary(
         "If the history is empty or just greetings, return 'No story details shared yet.'"
     )
 
-    # Filter messages to only include user content for the summary context?
-    # Actually, the full context is better so the AI understands the flow.
-    # But we want to summarize the *user's* story.
-
-    return run_gemini_fallback(
-        messages=messages,
+    result = run_gemini_fallback(
+        messages=messages_to_summarize,
         system_instruction=system_instruction,
         models=models,
         api_key=api_key,
     )
+
+    # Add phases_summarized to result
+    result["phases_summarized"] = phases_summarized
+
+    return result
