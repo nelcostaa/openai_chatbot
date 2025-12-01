@@ -226,18 +226,12 @@ describe('App Component', () => {
         })
 
         describe('Generate Summary Button', () => {
-            it('should display generate summary button', () => {
+            it('should not display generate summary button when no chapters selected', () => {
                 render(<App />)
-                expect(screen.getByTestId('generate-chapter-summary-btn')).toBeTruthy()
+                expect(screen.queryByTestId('generate-chapter-summary-btn')).toBeNull()
             })
 
-            it('should disable generate button when no chapters are selected', () => {
-                render(<App />)
-                const generateBtn = screen.getByTestId('generate-chapter-summary-btn')
-                expect(generateBtn).toBeDisabled()
-            })
-
-            it('should enable generate button when at least one chapter is selected', async () => {
+            it('should display generate button when at least one chapter is selected', async () => {
                 const user = userEvent.setup()
                 render(<App />)
 
@@ -248,7 +242,7 @@ describe('App Component', () => {
                 await user.click(childhoodCheckbox)
 
                 const generateBtn = screen.getByTestId('generate-chapter-summary-btn')
-                expect(generateBtn).not.toBeDisabled()
+                expect(generateBtn).toBeTruthy()
             })
 
             it('should show selected chapter count on button', async () => {

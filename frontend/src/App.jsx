@@ -754,21 +754,21 @@ function App() {
               </div>
             )}
 
-            {/* Generate Summary Button */}
-            <button
-              data-testid="generate-chapter-summary-btn"
-              onClick={handleGenerateChapterSummary}
-              disabled={selectedChapters.length === 0 || isSummarizing}
-              className="w-full mt-3 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded text-sm font-medium transition-colors"
-            >
-              {isSummarizing ? (
-                'Generating summary...'
-              ) : selectedChapters.length === 0 ? (
-                'Select chapters to summarize'
-              ) : (
-                `Generate Summary (${selectedChapters.length} chapter${selectedChapters.length !== 1 ? 's' : ''})`
-              )}
-            </button>
+            {/* Generate Summary Button - only show when chapters are selected */}
+            {selectedChapters.length > 0 && (
+              <button
+                data-testid="generate-chapter-summary-btn"
+                onClick={handleGenerateChapterSummary}
+                disabled={isSummarizing}
+                className="w-full mt-3 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded text-sm font-medium transition-colors"
+              >
+                {isSummarizing ? (
+                  'Generating summary...'
+                ) : (
+                  `Generate Summary (${selectedChapters.length} chapter${selectedChapters.length !== 1 ? 's' : ''})`
+                )}
+              </button>
+            )}
           </div>
 
           {/* Summary Display */}
