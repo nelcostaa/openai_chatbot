@@ -1,0 +1,22 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./backend:/app # hot reloading
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    networks:
+      - backend-network
+    
+  redis:
+    image: redis:alpine
+    networks:
+      - backend-network
+
+networks:
+  backend-network:
