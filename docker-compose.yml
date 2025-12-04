@@ -1,11 +1,10 @@
 services:
   backend:
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
-      - ./backend:/app # hot reloading
+      - .:/app # hot reloading
     env_file:
       - .env
     ports:
@@ -20,3 +19,4 @@ services:
 
 networks:
   backend-network:
+    driver: bridge

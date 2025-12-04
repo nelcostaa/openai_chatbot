@@ -1,2 +1,62 @@
+# Core web
+fastapi>=0.95,<1.0
+uvicorn>=0.22,<1.0
+websockets>=10.0
+httptools>=0.5.0
+uvloop>=0.14.0; sys_platform != "win32"
+watchfiles>=0.13
+
+# Async HTTP (prefer for async backends) and sync fallback
+httpx>=0.24.0
+requests>=2.31.0
+Brotli>=1.0.9
+
+# Environment
+python-dotenv>=1.0.0
+
+# Database & ORM (async support)
+SQLAlchemy>=1.4
+asyncpg>=0.27.0    # async Postgres driver
+psycopg2-binary>=2.9.7  # for sync tooling / migrations
+alembic>=1.11.0
+
+# File uploads / static handling
+aiofiles>=23.1.0
+python-multipart>=0.0.6
+
+# Validation and models
+pydantic>=1.10.0,<2.0.0
+
+# Authentication / security
+passlib[bcrypt]>=1.7.4
+python-jose[cryptography]>=3.3.0
+
+# Logging & monitoring
+loguru>=0.7.0
+sentry-sdk>=1.14.0
+
+# LLM / Agent integrations
 google-generativeai==0.3.2
-python-dotenv==1.0.0
+langchain>=0.2.0         # common LLM orchestration library
+
+# LANGGRAPH / AGENT NOTE:
+# Replace the following placeholder with the correct langgraph package name & version
+# when you confirm the exact PyPI package (example):
+# langgraph==<version>
+# or if the package is part of a monorepo or private index, install via:
+# -e git+https://...#egg=langgraph
+
+# Production process manager (use with caution; choose one that fits your infra)
+gunicorn>=20.1.0
+
+# Dev / Testing
+pytest>=7.4.0
+pytest-asyncio>=0.22.0
+httpx>=0.24.0        # also useful in tests for async client
+
+# Utilities
+python-dateutil>=2.8.2
+typing-extensions>=4.5.0
+
+# Optional: add any other agent-specific connectors or SDKs here
+# e.g. redis, celery, rq, etc.
