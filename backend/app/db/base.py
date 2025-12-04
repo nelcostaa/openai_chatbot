@@ -1,5 +1,5 @@
 # Import all models here so Alembic can find them
-from app.db.base_class import Base
-from app.models.message import Message
+from backend.app.db.base_class import Base
+from backend.app.models.message import Message
 
-# from app.models.user import User (Future)
+# from backend.app.models.user import User (Future)

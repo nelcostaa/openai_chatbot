@@ -30,5 +30,8 @@ COPY . .
 # Expose port 8000
 EXPOSE 8000
 
+# Set PYTHONPATH so imports work correctly
+ENV PYTHONPATH=/app
+
 # Command to run the application
 CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

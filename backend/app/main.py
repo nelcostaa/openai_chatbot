@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.app.api.endpoints import messages
+
 app = FastAPI(title="Life Story Game API")
 
 # Configure CORS for Vercel Frontend
@@ -16,6 +18,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include API routers
+app.include_router(messages.router, prefix="/api/messages", tags=["messages"])
 
 
 @app.get("/health")
