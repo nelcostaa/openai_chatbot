@@ -6,44 +6,44 @@
 
 @layer base {
   :root {
-    --background: 40 30% 96%;
-    --foreground: 30 10% 15%;
+    --background: 35 50% 97%;
+    --foreground: 20 35% 25%;
 
-    --card: 40 25% 98%;
-    --card-foreground: 30 10% 15%;
+    --card: 35 60% 98%;
+    --card-foreground: 20 35% 25%;
 
-    --popover: 40 25% 98%;
-    --popover-foreground: 30 10% 15%;
+    --popover: 35 60% 98%;
+    --popover-foreground: 20 35% 25%;
 
-    --primary: 25 45% 35%;
-    --primary-foreground: 40 30% 98%;
+    --primary: 18 65% 68%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 35 20% 90%;
-    --secondary-foreground: 30 10% 20%;
+    --secondary: 30 60% 95%;
+    --secondary-foreground: 20 35% 30%;
 
-    --muted: 35 15% 88%;
-    --muted-foreground: 30 10% 40%;
+    --muted: 30 45% 90%;
+    --muted-foreground: 20 20% 50%;
 
-    --accent: 25 35% 45%;
-    --accent-foreground: 40 30% 98%;
+    --accent: 18 55% 62%;
+    --accent-foreground: 0 0% 100%;
 
     --destructive: 0 60% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 35 20% 85%;
-    --input: 35 20% 88%;
-    --ring: 25 45% 35%;
+    --border: 25 30% 88%;
+    --input: 30 40% 92%;
+    --ring: 18 65% 68%;
 
     --radius: 0.5rem;
 
-    /* Custom tokens */
-    --story-bg: 35 25% 94%;
-    --story-text: 30 15% 20%;
-    --ai-bubble: 35 20% 92%;
-    --user-bubble: 25 40% 40%;
-    --timeline-active: 25 45% 35%;
-    --timeline-complete: 140 40% 35%;
-    --timeline-inactive: 35 15% 75%;
+    /* Custom tokens - Life theme */
+    --story-bg: 30 55% 96%;
+    --story-text: 20 35% 25%;
+    --ai-bubble: 30 50% 94%;
+    --user-bubble: 18 65% 68%;
+    --timeline-active: 18 65% 68%;
+    --timeline-complete: 140 40% 50%;
+    --timeline-inactive: 30 30% 80%;
 
     --sidebar-background: 40 25% 94%;
     --sidebar-foreground: 30 10% 20%;
