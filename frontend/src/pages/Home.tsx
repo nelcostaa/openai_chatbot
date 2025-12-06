@@ -53,13 +53,13 @@ export default function Home() {
       {/* Hero Section */}
       <section className="relative py-32 md:py-40 px-6 overflow-hidden">
         {/* Background Image */}
-        <div 
-          className="absolute inset-0 z-0"
+        <div
+          className="absolute inset-0 z-0 hero-background-mobile"
           style={{
             backgroundImage: 'url(/background-hero.jpg)',
-            backgroundSize: '120%',
             backgroundPosition: 'center',
             backgroundRepeat: 'no-repeat',
+            backgroundAttachment: 'fixed',
             imageRendering: 'crisp-edges',
             WebkitBackfaceVisibility: 'hidden',
             backfaceVisibility: 'hidden',
@@ -80,7 +80,7 @@ export default function Home() {
           </h1>
 
           <p className="text-xl md:text-2xl text-white/95 max-w-2xl mx-auto mb-12 leading-relaxed drop-shadow-md">
-            A gentle guide to help you capture your life's memories, 
+            A gentle guide to help you capture your life's memories,
             one conversation at a time. Simple, meaningful, and made for you.
           </p>
 
@@ -137,7 +137,7 @@ export default function Home() {
       <section className="py-16 px-6 bg-[#FFE8D6]/60">
         <div className="max-w-2xl mx-auto text-center">
           <blockquote className="text-2xl font-story italic text-[#5C3D2E] mb-6 leading-relaxed">
-            "This helped me remember stories I thought I'd forgotten. 
+            "This helped me remember stories I thought I'd forgotten.
             My grandchildren now know where they come from."
           </blockquote>
           <p className="text-lg text-[#8B6F5C]">

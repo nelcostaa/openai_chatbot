@@ -4,127 +4,158 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  :root {
-    --background: 35 50% 97%;
-    --foreground: 20 35% 25%;
+/* Responsive background image sizing */
+.hero-background-mobile {
+    @apply max-w-full;
+}
 
-    --card: 35 60% 98%;
-    --card-foreground: 20 35% 25%;
+@media (max-width: 768px) {
+    .hero-background-mobile {
+        background-size: 130% !important;
+    }
+}
 
-    --popover: 35 60% 98%;
-    --popover-foreground: 20 35% 25%;
+@media (min-width: 769px) and (max-width: 1024px) {
+    .hero-background-mobile {
+        background-size: 110% !important;
+    }
+}
 
-    --primary: 18 65% 68%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 30 60% 95%;
-    --secondary-foreground: 20 35% 30%;
-
-    --muted: 30 45% 90%;
-    --muted-foreground: 20 20% 50%;
-
-    --accent: 18 55% 62%;
-    --accent-foreground: 0 0% 100%;
-
-    --destructive: 0 60% 50%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 25 30% 88%;
-    --input: 30 40% 92%;
-    --ring: 18 65% 68%;
-
-    --radius: 0.5rem;
-
-    /* Custom tokens - Life theme */
-    --story-bg: 30 55% 96%;
-    --story-text: 20 35% 25%;
-    --ai-bubble: 30 50% 94%;
-    --user-bubble: 18 65% 68%;
-    --timeline-active: 18 65% 68%;
-    --timeline-complete: 140 40% 50%;
-    --timeline-inactive: 30 30% 80%;
-
-    --sidebar-background: 40 25% 94%;
-    --sidebar-foreground: 30 10% 20%;
-    --sidebar-primary: 25 45% 35%;
-    --sidebar-primary-foreground: 40 30% 98%;
-    --sidebar-accent: 35 20% 88%;
-    --sidebar-accent-foreground: 30 10% 20%;
-    --sidebar-border: 35 20% 82%;
-    --sidebar-ring: 25 45% 35%;
-  }
+@media (min-width: 1025px) {
+    .hero-background-mobile {
+        background-size: cover !important;
+    }
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
+    :root {
+        --background: 35 50% 97%;
+        --foreground: 20 35% 25%;
 
-  body {
-    @apply bg-background text-foreground antialiased;
-    font-family: 'Source Sans 3', system-ui, sans-serif;
-  }
+        --card: 35 60% 98%;
+        --card-foreground: 20 35% 25%;
 
-  .font-story {
-    font-family: 'Lora', Georgia, serif;
-  }
+        --popover: 35 60% 98%;
+        --popover-foreground: 20 35% 25%;
+
+        --primary: 18 65% 68%;
+        --primary-foreground: 0 0% 100%;
+
+        --secondary: 30 60% 95%;
+        --secondary-foreground: 20 35% 30%;
+
+        --muted: 30 45% 90%;
+        --muted-foreground: 20 20% 50%;
+
+        --accent: 18 55% 62%;
+        --accent-foreground: 0 0% 100%;
+
+        --destructive: 0 60% 50%;
+        --destructive-foreground: 0 0% 100%;
+
+        --border: 25 30% 88%;
+        --input: 30 40% 92%;
+        --ring: 18 65% 68%;
+
+        --radius: 0.5rem;
+
+        /* Custom tokens - Life theme */
+        --story-bg: 30 55% 96%;
+        --story-text: 20 35% 25%;
+        --ai-bubble: 30 50% 94%;
+        --user-bubble: 18 65% 68%;
+        --timeline-active: 18 65% 68%;
+        --timeline-complete: 140 40% 50%;
+        --timeline-inactive: 30 30% 80%;
+
+        --sidebar-background: 40 25% 94%;
+        --sidebar-foreground: 30 10% 20%;
+        --sidebar-primary: 25 45% 35%;
+        --sidebar-primary-foreground: 40 30% 98%;
+        --sidebar-accent: 35 20% 88%;
+        --sidebar-accent-foreground: 30 10% 20%;
+        --sidebar-border: 35 20% 82%;
+        --sidebar-ring: 25 45% 35%;
+    }
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+
+    body {
+        @apply bg-background text-foreground antialiased;
+        font-family: 'Source Sans 3', system-ui, sans-serif;
+    }
+
+    .font-story {
+        font-family: 'Lora', Georgia, serif;
+    }
 }
 
 @layer components {
-  .glass-panel {
-    @apply bg-card border border-border shadow-sm;
-  }
+    .glass-panel {
+        @apply bg-card border border-border shadow-sm;
+    }
 
-  .message-appear {
-    animation: messageSlideIn 0.4s ease-out;
-  }
+    .message-appear {
+        animation: messageSlideIn 0.4s ease-out;
+    }
 
-  .input-glow:focus-within {
-    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.15);
-  }
+    .input-glow:focus-within {
+        box-shadow: 0 0 0 3px hsl(var(--primary) / 0.15);
+    }
 }
 
 @layer utilities {
-  .text-gradient {
-    @apply text-primary;
-  }
+    .text-gradient {
+        @apply text-primary;
+    }
 
-  .scrollbar-thin {
-    scrollbar-width: thin;
-    scrollbar-color: hsl(var(--muted)) transparent;
-  }
+    .scrollbar-thin {
+        scrollbar-width: thin;
+        scrollbar-color: hsl(var(--muted)) transparent;
+    }
 
-  .scrollbar-thin::-webkit-scrollbar {
-    width: 8px;
-  }
+    .scrollbar-thin::-webkit-scrollbar {
+        width: 8px;
+    }
 
-  .scrollbar-thin::-webkit-scrollbar-track {
-    background: transparent;
-  }
+    .scrollbar-thin::-webkit-scrollbar-track {
+        background: transparent;
+    }
 
-  .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: hsl(var(--muted));
-    border-radius: 4px;
-  }
+    .scrollbar-thin::-webkit-scrollbar-thumb {
+        background: hsl(var(--muted));
+        border-radius: 4px;
+    }
 }
 
 @keyframes messageSlideIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 @keyframes pulse-soft {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.4;
+    }
 }
 
 .animate-pulse-soft {
-  animation: pulse-soft 1.2s ease-in-out infinite;
+    animation: pulse-soft 1.2s ease-in-out infinite;
 }
