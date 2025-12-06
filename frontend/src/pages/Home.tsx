@@ -30,7 +30,7 @@ export default function Home() {
       <nav className="border-b border-border/60 bg-[#FFF8F0]/95 backdrop-blur-sm">
         <div className="max-w-4xl mx-auto px-6 h-20 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3">
-            <BookOpen className="w-7 h-7 text-[#E8956F]" />
+            <BookOpen className="w-7 h-7 text-[#5C3D2E]" />
             <span className="text-xl font-semibold text-[#5C3D2E] font-story">Life Story</span>
           </Link>
           <div className="flex items-center gap-6">
@@ -174,7 +174,7 @@ export default function Home() {
       <footer className="py-10 px-6 border-t border-[#E8C5A8]">
         <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <BookOpen className="w-5 h-5 text-[#E8956F]" />
+            <BookOpen className="w-5 h-5 text-[#5C3D2E]" />
             <span className="text-[#8B6F5C]">
               © 2024 Life Story
             </span>
