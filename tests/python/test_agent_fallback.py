@@ -6,7 +6,7 @@ Tests the LangGraph agent with model fallback cascade logic.
 
 import sys
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
@@ -15,7 +15,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from backend.app.core.agent import get_model_cascade, chatbot_node, AgentState
+from backend.app.core.agent import AgentState, chatbot_node, get_model_cascade
 
 
 class TestGetModelCascade:
@@ -38,7 +38,9 @@ class TestGetModelCascade:
 
     def test_strips_whitespace(self):
         """Should strip whitespace from model names."""
-        with patch.dict("os.environ", {"GEMINI_MODELS": " model-a , model-b  ,  model-c "}):
+        with patch.dict(
+            "os.environ", {"GEMINI_MODELS": " model-a , model-b  ,  model-c "}
+        ):
             models = get_model_cascade()
             assert models == ["model-a", "model-b", "model-c"]
 
@@ -56,13 +58,15 @@ class TestChatbotNode:
         """Should succeed immediately if first model works."""
         state = {
             "messages": [HumanMessage(content="Hello")],
-            "phase_instruction": "You are a helpful assistant."
+            "phase_instruction": "You are a helpful assistant.",
         }
 
         with patch("backend.app.core.agent.get_model_cascade") as mock_cascade:
             mock_cascade.return_value = ["model-1", "model-2"]
-            
-            with patch("backend.app.core.agent.ChatGoogleGenerativeAI") as mock_llm_class:
+
+            with patch(
+                "backend.app.core.agent.ChatGoogleGenerativeAI"
+            ) as mock_llm_class:
                 mock_llm = Mock()
                 mock_llm.invoke.return_value = mock_langchain_response
                 mock_llm_class.return_value = mock_llm
@@ -71,74 +75,89 @@ class TestChatbotNode:
 
                 # Should only try first model
                 assert mock_llm_class.call_count == 1
-                assert result["messages"][0].content == "This is a mock AI response from LangGraph."
+                assert (
+                    result["messages"][0].content
+                    == "This is a mock AI response from LangGraph."
+                )
 
     def test_fallback_on_rate_limit(self, mock_langchain_response):
         """Should fallback to next model on 429 rate limit error."""
         state = {
             "messages": [HumanMessage(content="Hello")],
-            "phase_instruction": "You are a helpful assistant."
+            "phase_instruction": "You are a helpful assistant.",
         }
 
         with patch("backend.app.core.agent.get_model_cascade") as mock_cascade:
             mock_cascade.return_value = ["model-1", "model-2", "model-3"]
-            
-            with patch("backend.app.core.agent.ChatGoogleGenerativeAI") as mock_llm_class:
+
+            with patch(
+                "backend.app.core.agent.ChatGoogleGenerativeAI"
+            ) as mock_llm_class:
                 # First model fails with 429
                 mock_llm_1 = Mock()
                 mock_llm_1.invoke.side_effect = Exception("429 rate limit exceeded")
-                
+
                 # Second model fails with quota
                 mock_llm_2 = Mock()
                 mock_llm_2.invoke.side_effect = Exception("quota exhausted")
-                
+
                 # Third model succeeds
                 mock_llm_3 = Mock()
                 mock_llm_3.invoke.return_value = mock_langchain_response
-                
+
                 mock_llm_class.side_effect = [mock_llm_1, mock_llm_2, mock_llm_3]
 
                 result = chatbot_node(state)
 
                 # Should try all 3 models
                 assert mock_llm_class.call_count == 3
-                assert result["messages"][0].content == "This is a mock AI response from LangGraph."
+                assert (
+                    result["messages"][0].content
+                    == "This is a mock AI response from LangGraph."
+                )
 
     def test_fallback_on_resource_exhausted(self, mock_langchain_response):
         """Should detect resource_exhausted as rate limit."""
         state = {
             "messages": [HumanMessage(content="Hello")],
-            "phase_instruction": "Test instruction"
+            "phase_instruction": "Test instruction",
         }
 
         with patch("backend.app.core.agent.get_model_cascade") as mock_cascade:
             mock_cascade.return_value = ["model-1", "model-2"]
-            
-            with patch("backend.app.core.agent.ChatGoogleGenerativeAI") as mock_llm_class:
+
+            with patch(
+                "backend.app.core.agent.ChatGoogleGenerativeAI"
+            ) as mock_llm_class:
                 mock_llm_1 = Mock()
                 mock_llm_1.invoke.side_effect = Exception("resource_exhausted for API")
-                
+
                 mock_llm_2 = Mock()
                 mock_llm_2.invoke.return_value = mock_langchain_response
-                
+
                 mock_llm_class.side_effect = [mock_llm_1, mock_llm_2]
 
                 result = chatbot_node(state)
 
                 assert mock_llm_class.call_count == 2
-                assert result["messages"][0].content == "This is a mock AI response from LangGraph."
+                assert (
+                    result["messages"][0].content
+                    == "This is a mock AI response from LangGraph."
+                )
 
     def test_abort_on_non_rate_limit_error(self):
         """Should abort immediately on non-rate-limit errors."""
         state = {
             "messages": [HumanMessage(content="Hello")],
-            "phase_instruction": "Test instruction"
+            "phase_instruction": "Test instruction",
         }
 
         with patch("backend.app.core.agent.get_model_cascade") as mock_cascade:
             mock_cascade.return_value = ["model-1", "model-2", "model-3"]
-            
-            with patch("backend.app.core.agent.ChatGoogleGenerativeAI") as mock_llm_class:
+
+            with patch(
+                "backend.app.core.agent.ChatGoogleGenerativeAI"
+            ) as mock_llm_class:
                 mock_llm = Mock()
                 mock_llm.invoke.side_effect = ValueError("Invalid input format")
                 mock_llm_class.return_value = mock_llm
@@ -153,18 +172,22 @@ class TestChatbotNode:
         """Should raise exception if all models hit rate limits."""
         state = {
             "messages": [HumanMessage(content="Hello")],
-            "phase_instruction": "Test instruction"
+            "phase_instruction": "Test instruction",
         }
 
         with patch("backend.app.core.agent.get_model_cascade") as mock_cascade:
             mock_cascade.return_value = ["model-1", "model-2"]
-            
-            with patch("backend.app.core.agent.ChatGoogleGenerativeAI") as mock_llm_class:
+
+            with patch(
+                "backend.app.core.agent.ChatGoogleGenerativeAI"
+            ) as mock_llm_class:
                 mock_llm = Mock()
                 mock_llm.invoke.side_effect = Exception("429 rate limit")
                 mock_llm_class.return_value = mock_llm
 
-                with pytest.raises(Exception, match="All 2 models exhausted rate limits"):
+                with pytest.raises(
+                    Exception, match="All 2 models exhausted rate limits"
+                ):
                     chatbot_node(state)
 
                 assert mock_llm_class.call_count == 2
@@ -173,13 +196,15 @@ class TestChatbotNode:
         """Should prepend phase instruction as system message."""
         state = {
             "messages": [HumanMessage(content="Hello")],
-            "phase_instruction": "You are a warm interviewer."
+            "phase_instruction": "You are a warm interviewer.",
         }
 
         with patch("backend.app.core.agent.get_model_cascade") as mock_cascade:
             mock_cascade.return_value = ["model-1"]
-            
-            with patch("backend.app.core.agent.ChatGoogleGenerativeAI") as mock_llm_class:
+
+            with patch(
+                "backend.app.core.agent.ChatGoogleGenerativeAI"
+            ) as mock_llm_class:
                 mock_llm = Mock()
                 mock_llm.invoke.return_value = mock_langchain_response
                 mock_llm_class.return_value = mock_llm
