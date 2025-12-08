@@ -65,20 +65,24 @@ def mock_db_session():
     """Mock database session for testing."""
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
+
     from backend.app.db.base_class import Base
+    # Import all models so Base.metadata knows about them
+    from backend.app.models.user import User  # noqa: F401
+    from backend.app.models.story import Story  # noqa: F401
+    from backend.app.models.message import Message  # noqa: F401
 
     # Create in-memory SQLite database with thread safety disabled
     engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False}
+        "sqlite:///:memory:", connect_args={"check_same_thread": False}
     )
     Base.metadata.create_all(engine)
-    
+
     SessionLocal = sessionmaker(bind=engine)
     session = SessionLocal()
-    
+
     yield session
-    
+
     session.close()
 
 
@@ -86,17 +90,17 @@ def mock_db_session():
 def sample_user(mock_db_session):
     """Create a test user."""
     from backend.app.models.user import User
-    
+
     user = User(
         email="test@example.com",
         hashed_password="fake_hash",
         display_name="Test User",
-        is_active=True
+        is_active=True,
     )
     mock_db_session.add(user)
     mock_db_session.commit()
     mock_db_session.refresh(user)
-    
+
     return user
 
 
@@ -104,17 +108,17 @@ def sample_user(mock_db_session):
 def sample_story(mock_db_session, sample_user):
     """Create a test story."""
     from backend.app.models.story import Story
-    
+
     story = Story(
         user_id=sample_user.id,
         title="Test Story",
         current_phase="GREETING",
-        status="draft"
+        status="draft",
     )
     mock_db_session.add(story)
     mock_db_session.commit()
     mock_db_session.refresh(story)
-    
+
     return story
 
 
@@ -122,5 +126,5 @@ def sample_story(mock_db_session, sample_user):
 def mock_langchain_response():
     """Mock LangChain AIMessage response."""
     from langchain_core.messages import AIMessage
-    
+
     return AIMessage(content="This is a mock AI response from LangGraph.")
