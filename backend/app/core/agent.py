@@ -16,34 +16,100 @@ class AgentState(TypedDict):
     phase_instruction: str
 
 
-# 2. Initialize Model (Gemini)
+# 2. Model Fallback Cascade
+def get_model_cascade() -> List[str]:
+    """
+    Get model fallback cascade from environment or return defaults.
+    Ordered by rate limits and performance.
+    """
+    env_models = os.getenv("GEMINI_MODELS")
+    if env_models:
+        return [m.strip() for m in env_models.split(",") if m.strip()]
+
+    # Default cascade - ordered by rate limits (free tier models)
+    return [
+        "gemini-2.0-flash-exp",  # Experimental, fastest
+        "gemini-2.0-flash",  # Stable 2.0
+        "gemini-2.5-flash",  # Latest stable
+        "gemini-flash-latest",  # Generic alias (1.5 Flash)
+        "gemini-2.0-flash-lite",  # Lite version fallback
+    ]
+
+
+# 3. Initialize API Key
 if not os.getenv("GEMINI_API_KEY"):
     raise ValueError("GEMINI_API_KEY is not set in .env")
 
-llm = ChatGoogleGenerativeAI(
-    model="gemini-2.0-flash-exp",  # Fallback to gemini-1.5-flash if needed
-    google_api_key=os.getenv("GEMINI_API_KEY"),
-    temperature=0.7,
-    convert_system_message_to_human=True,  # Helper for Gemini's specific role requirements
-)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 
-# 3. Define Nodes
+# 4. Define Nodes with Fallback Logic
 def chatbot_node(state: AgentState):
-    """The core node that talks to the AI"""
+    """
+    The core node that talks to the AI with automatic model fallback.
+
+    Tries models in cascade until one succeeds or all fail.
+    """
     messages = state["messages"]
     phase_instruction = state["phase_instruction"]
 
     # Prepend the system instruction (Phase/Persona)
-    # We do this dynamically so we can change instructions based on the Story Phase
     system_msg = SystemMessage(content=phase_instruction)
+    full_messages = [system_msg] + messages
 
-    # Call Gemini
-    # We invoke the model with [SystemMessage, ...History]
-    response = llm.invoke([system_msg] + messages)
+    # Get model cascade
+    model_cascade = get_model_cascade()
 
-    # Return the *new* message to append to state
-    return {"messages": [response]}
+    # Try each model in cascade
+    for attempt_idx, model_name in enumerate(model_cascade):
+        try:
+            print(
+                f"[Agent] Attempt {attempt_idx + 1}/{len(model_cascade)}: {model_name}"
+            )
+
+            # Initialize model for this attempt
+            llm = ChatGoogleGenerativeAI(
+                model=model_name,
+                google_api_key=GEMINI_API_KEY,
+                temperature=0.7,
+                convert_system_message_to_human=True,
+            )
+
+            # Call Gemini
+            response = llm.invoke(full_messages)
+
+            # Success!
+            print(f"[Agent] ✅ Success with {model_name}")
+            return {"messages": [response]}
+
+        except Exception as e:
+            error_message = str(e)
+            print(f"[Agent] ❌ {model_name} failed: {error_message}")
+
+            # Check if rate limit error
+            is_rate_limit = any(
+                indicator in error_message.lower()
+                for indicator in ["429", "resource_exhausted", "rate limit", "quota"]
+            )
+
+            if is_rate_limit:
+                print(f"[Agent] 🔄 Rate limit on {model_name}, trying next model...")
+
+                # If last model, raise error
+                if attempt_idx == len(model_cascade) - 1:
+                    raise Exception(
+                        f"All {len(model_cascade)} models exhausted rate limits"
+                    )
+
+                # Continue to next model
+                continue
+
+            # Non-rate-limit error - fail immediately
+            print(f"[Agent] ⚠️ Non-rate-limit error, aborting cascade")
+            raise
+
+    # Should never reach here
+    raise Exception("Failed to generate response with any model")
 
 
 # 4. Build Graph

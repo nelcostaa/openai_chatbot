@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.app.api.endpoints import chat, messages
+from backend.app.api.endpoints import interview, messages
 
 app = FastAPI(title="Life Story Game API")
 
@@ -30,5 +30,5 @@ def health_check():
     return {"status": "ok", "service": "Life Story Game API"}
 
 
-# Register the Chat Router
-app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
+# Register the Interview Router
+app.include_router(interview.router, prefix="/api/interview", tags=["interview"])

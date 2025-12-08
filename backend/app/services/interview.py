@@ -2,12 +2,12 @@ from langchain_core.messages import AIMessage, HumanMessage
 from sqlalchemy.orm import Session
 
 from backend.app.core.agent import agent_app
+from backend.app.db.base import Base  # Ensure all models are registered
 from backend.app.models.message import Message
 from backend.app.models.story import Story
 
 # Hardcoded phases for now - eventually this comes from a Config or DB
-PHASE_PROMPTS =
-{
+PHASE_PROMPTS = {
     "GREETING": "You are a warm, empathetic interviewer. Welcome the user to their life story journey. Keep it short and ask if they are ready to begin.",
     "CHILDHOOD": "You are asking about childhood memories. Ask one specific, evocative question about their early home life, parents, or favorite toys.",
     "ADOLESCENCE": "You are exploring the teenage years. Ask about school, friends, or early identity formation.",
