@@ -29,6 +29,8 @@ You are a Senior Front-End Developer and an Expert in ReactJS, NextJS, JavaScrip
 The user asks questions about the following coding languages:
 - ReactJS
 - NextJS
+- Python
+- FastAPI
 - JavaScript
 - TypeScript
 - TailwindCSS

@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, BookOpen, ArrowRight, User, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StoryCard } from "@/components/stories/StoryCard";
+import { SnippetPreview } from "@/components/stories/SnippetPreview";
 import { useStories, useDeleteStory } from "@/hooks/useStories";
 import { useLogout, useCurrentUser } from "@/hooks/useAuth";
 import { formatDistanceToNow } from "date-fns";
@@ -12,6 +14,10 @@ export default function MyStories() {
   const { data: user } = useCurrentUser();
   const deleteMutation = useDeleteStory();
   const logout = useLogout();
+
+  // State for snippet preview modal
+  const [previewStoryId, setPreviewStoryId] = useState<number | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const currentDate = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -36,6 +42,11 @@ export default function MyStories() {
 
   const handleLogout = () => {
     logout();
+  };
+
+  const handlePreview = (id: string) => {
+    setPreviewStoryId(parseInt(id));
+    setIsPreviewOpen(true);
   };
 
   if (isLoading) {
@@ -141,6 +152,7 @@ export default function MyStories() {
                   status="in-progress"
                   onContinue={handleContinue}
                   onDelete={handleDelete}
+                  onPreview={handlePreview}
                 />
               ))}
             </div>
@@ -168,6 +180,13 @@ export default function MyStories() {
           </div>
         )}
       </main>
+
+      {/* Snippet Preview Modal */}
+      <SnippetPreview
+        storyId={previewStoryId}
+        open={isPreviewOpen}
+        onOpenChange={setIsPreviewOpen}
+      />
     </div>
   );
 }

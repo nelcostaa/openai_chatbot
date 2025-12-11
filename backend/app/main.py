@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.app.api.endpoints import auth, interview, messages, stories
+from backend.app.api.endpoints import auth, interview, messages, snippets, stories
 
 app = FastAPI(title="Life Story Game API")
 
@@ -26,6 +26,7 @@ app.include_router(auth.router, prefix="/api/auth", tags=["authentication"])
 app.include_router(stories.router, prefix="/api/stories", tags=["stories"])
 app.include_router(messages.router, prefix="/api/messages", tags=["messages"])
 app.include_router(interview.router, prefix="/api/interview", tags=["interview"])
+app.include_router(snippets.router, prefix="/api/snippets", tags=["snippets"])
 
 
 @app.get("/health")

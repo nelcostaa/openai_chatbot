@@ -1,4 +1,4 @@
-import { BookOpen, Clock, CheckCircle, Trash2 } from "lucide-react";
+import { BookOpen, Clock, CheckCircle, Trash2, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface StoryCardProps {
@@ -9,6 +9,7 @@ interface StoryCardProps {
   status: "in-progress" | "completed";
   onContinue: (id: string) => void;
   onDelete: (id: string) => void;
+  onPreview?: (id: string) => void;
 }
 
 export function StoryCard({
@@ -19,6 +20,7 @@ export function StoryCard({
   status,
   onContinue,
   onDelete,
+  onPreview,
 }: StoryCardProps) {
   return (
     <div className="bg-card border border-border rounded-xl p-6 hover:shadow-md transition-shadow duration-200">
@@ -28,11 +30,10 @@ export function StoryCard({
           <BookOpen className="w-7 h-7 text-primary" />
         </div>
         <div
-          className={`px-3 py-1.5 rounded-full text-sm font-medium ${
-            status === "completed"
+          className={`px-3 py-1.5 rounded-full text-sm font-medium ${status === "completed"
               ? "bg-green-100 text-green-800"
               : "bg-amber-100 text-amber-800"
-          }`}
+            }`}
         >
           {status === "completed" ? "Completed" : "In Progress"}
         </div>
@@ -67,6 +68,21 @@ export function StoryCard({
             "Continue Writing"
           )}
         </Button>
+
+        {/* Preview Cards Button */}
+        {onPreview && (
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-12 w-12 text-muted-foreground hover:text-primary hover:border-primary"
+            onClick={() => onPreview(id)}
+            aria-label="Preview story cards"
+            tabIndex={0}
+          >
+            <Eye className="w-5 h-5" />
+          </Button>
+        )}
+
         <Button
           variant="outline"
           size="icon"

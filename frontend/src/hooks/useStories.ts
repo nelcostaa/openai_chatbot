@@ -10,6 +10,22 @@ export interface Story {
     user_id: number;
 }
 
+// Snippet types for game card generation
+export interface Snippet {
+    title: string;
+    content: string;
+    phase: string;
+    theme: string;
+}
+
+export interface SnippetsResponse {
+    success: boolean;
+    snippets: Snippet[];
+    count: number;
+    model: string | null;
+    error?: string;
+}
+
 interface CreateStoryDto {
     title: string;
     description?: string;
@@ -91,5 +107,48 @@ export const useDeleteStory = () => {
             // Invalidate stories list to refetch
             queryClient.invalidateQueries({ queryKey: ['stories'] });
         },
+    });
+};
+
+/**
+ * Generate story snippets (game cards) for a story.
+ * 
+ * This is a mutation because:
+ * 1. It triggers AI processing (expensive operation)
+ * 2. We want explicit user control over when to generate
+ * 3. Results can be cached per story_id for future requests
+ * 
+ * Usage:
+ *   const { mutate: generateSnippets, data, isPending } = useStorySnippets();
+ *   generateSnippets(storyId);
+ */
+export const useStorySnippets = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (storyId: number): Promise<SnippetsResponse> => {
+            // POST to /api/snippets/{story_id} - story_id is in the URL path
+            const response = await api.post<SnippetsResponse>(`/api/snippets/${storyId}`);
+            return response.data;
+        },
+        onSuccess: (data, storyId) => {
+            // Cache the snippets for this story so we don't regenerate unnecessarily
+            queryClient.setQueryData(['snippets', storyId], data);
+        },
+    });
+};
+
+/**
+ * Get cached snippets for a story (if previously generated).
+ * 
+ * This is useful if you want to check if snippets exist before
+ * showing a "regenerate" vs "generate" button.
+ */
+export const useCachedSnippets = (storyId: number | undefined) => {
+    return useQuery({
+        queryKey: ['snippets', storyId],
+        queryFn: () => null, // We never fetch - only use cache
+        enabled: false, // Disable automatic fetching
+        staleTime: Infinity, // Never consider cached data stale
     });
 };

@@ -12,8 +12,10 @@ Key features:
 - Comprehensive error logging
 - Returns structured response with metadata
 - Per-chapter summary filtering by interview phases
+- Story snippet generation for game cards
 """
 
+import json
 import os
 import re
 from typing import Dict, List, Optional
@@ -403,3 +405,180 @@ def generate_summary(
     result["phases_summarized"] = phases_summarized
 
     return result
+
+
+def generate_snippets(
+    messages: List[Dict[str, str]],
+    models: Optional[List[str]] = None,
+    api_key: Optional[str] = None,
+) -> Dict:
+    """
+    Generate story snippets (game card content) from conversation history.
+
+    Uses Gemini to analyze the story and create 3-8 short, impactful snippets
+    (max 300 characters each) suitable for printing on game cards.
+
+    The AI determines the number of snippets based on story depth and richness.
+
+    Args:
+        messages: Full conversation history
+        models: Optional list of models to try
+        api_key: Optional API key
+
+    Returns:
+        Dict with keys:
+            - success (bool): Whether generation succeeded
+            - snippets (list): Array of snippet objects, each with:
+                - title (str): Short catchy title (2-5 words)
+                - content (str): Snippet text (max 300 characters)
+                - phase (str): Life phase this snippet relates to
+                - theme (str): Emotional theme (e.g., 'growth', 'challenge')
+            - count (int): Number of snippets generated
+            - model (str|None): Model that succeeded
+            - error (str|None): Error message if failed
+    """
+    if not messages:
+        return {
+            "success": False,
+            "snippets": [],
+            "count": 0,
+            "model": None,
+            "error": "No messages provided",
+        }
+
+    # Filter out system messages and extract only user story content
+    story_messages = [
+        msg for msg in messages 
+        if msg.get("role") in ("user", "assistant")
+    ]
+
+    if not story_messages:
+        return {
+            "success": False,
+            "snippets": [],
+            "count": 0,
+            "model": None,
+            "error": "No story content found in messages",
+        }
+
+    # Build the story text for context
+    story_text = "\n".join([
+        f"{msg.get('role', 'unknown').upper()}: {msg.get('content', '')}"
+        for msg in story_messages
+    ])
+
+    # System instruction for structured JSON output
+    system_instruction = """You are a story curator creating content for printable game cards.
+
+Your task: Analyze the life story conversation and extract the most meaningful, emotionally resonant moments.
+
+OUTPUT FORMAT: You MUST respond with ONLY valid JSON, no other text. Use this exact structure:
+{
+  "snippets": [
+    {
+      "title": "2-5 word catchy title",
+      "content": "The snippet text, max 300 characters. Written in third person, narrative style.",
+      "phase": "CHILDHOOD|ADOLESCENCE|EARLY_ADULTHOOD|MIDLIFE|PRESENT|FAMILY_HISTORY",
+      "theme": "family|growth|challenge|adventure|love|legacy|identity|friendship"
+    }
+  ]
+}
+
+RULES:
+1. Generate 3-8 snippets based on story depth (fewer for short stories, more for rich ones)
+2. Each snippet content MUST be under 300 characters
+3. Write in third person ("They discovered...", "Growing up, they...")
+4. Focus on emotional highlights, turning points, and defining moments
+5. Each snippet should stand alone as a meaningful story beat
+6. Vary the themes - don't repeat the same theme consecutively
+7. If the story is very short or lacks content, generate just 2-3 snippets
+8. ONLY output the JSON object, nothing else"""
+
+    # Create the user message with story content
+    prompt_message = f"""Analyze this life story conversation and generate snippets for game cards:
+
+---STORY START---
+{story_text}
+---STORY END---
+
+Remember: Output ONLY the JSON object with snippets array. Each snippet max 300 characters."""
+
+    # Use run_gemini_fallback with our custom prompt
+    result = run_gemini_fallback(
+        messages=[{"role": "user", "content": prompt_message}],
+        system_instruction=system_instruction,
+        models=models,
+        api_key=api_key,
+    )
+
+    if not result["success"]:
+        return {
+            "success": False,
+            "snippets": [],
+            "count": 0,
+            "model": result.get("model"),
+            "error": result.get("error", "Failed to generate snippets"),
+        }
+
+    # Parse JSON response
+    try:
+        response_text = result["content"].strip()
+        
+        # Handle potential markdown code blocks
+        if response_text.startswith("```"):
+            # Remove markdown code fence
+            lines = response_text.split("\n")
+            # Remove first line (```json) and last line (```)
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            response_text = "\n".join(lines)
+        
+        parsed = json.loads(response_text)
+        snippets = parsed.get("snippets", [])
+
+        # Validate and sanitize snippets
+        validated_snippets = []
+        for snippet in snippets:
+            if not isinstance(snippet, dict):
+                continue
+            
+            title = snippet.get("title", "").strip()
+            content = snippet.get("content", "").strip()
+            phase = snippet.get("phase", "PRESENT").upper()
+            theme = snippet.get("theme", "growth").lower()
+
+            # Skip empty snippets
+            if not title or not content:
+                continue
+
+            # Truncate content if over 300 chars (safety net)
+            if len(content) > 300:
+                content = content[:297] + "..."
+
+            validated_snippets.append({
+                "title": title,
+                "content": content,
+                "phase": phase,
+                "theme": theme,
+            })
+
+        return {
+            "success": True,
+            "snippets": validated_snippets,
+            "count": len(validated_snippets),
+            "model": result.get("model"),
+            "error": None,
+        }
+
+    except json.JSONDecodeError as e:
+        print(f"[SNIPPETS] JSON parse error: {e}")
+        print(f"[SNIPPETS] Raw response: {result['content'][:500]}")
+        return {
+            "success": False,
+            "snippets": [],
+            "count": 0,
+            "model": result.get("model"),
+            "error": f"Failed to parse AI response as JSON: {str(e)}",
+        }

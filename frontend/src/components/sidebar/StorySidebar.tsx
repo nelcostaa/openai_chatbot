@@ -1,28 +1,27 @@
 import { useState } from "react";
-import { Plus, Settings, BookOpen, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Settings, BookOpen, ChevronLeft, ChevronRight, Eye, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
-
-interface Story {
-  id: string;
-  title: string;
-  date: string;
-  status: "in-progress" | "completed";
-}
-
-const mockStories: Story[] = [
-  { id: "1", title: "My Life Story", date: "Dec 2, 2024", status: "in-progress" },
-  { id: "2", title: "Dad's Memories", date: "Nov 28, 2024", status: "completed" },
-  { id: "3", title: "Grandma's Early Years", date: "Nov 15, 2024", status: "completed" },
-];
+import { useStories } from "@/hooks/useStories";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface StorySidebarProps {
   isCollapsed: boolean;
   onToggle: () => void;
+  onPreviewStory?: (storyId: number) => void;
 }
 
-export function StorySidebar({ isCollapsed, onToggle }: StorySidebarProps) {
-  const [activeStory, setActiveStory] = useState("1");
+export function StorySidebar({ isCollapsed, onToggle, onPreviewStory }: StorySidebarProps) {
+  const [activeStory, setActiveStory] = useState<number | null>(null);
+
+  // Fetch real stories from API
+  const { data: stories, isLoading, error } = useStories();
+
+  const handlePreviewClick = (e: React.MouseEvent, storyId: number) => {
+    // Stop propagation so we don't also select the story
+    e.stopPropagation();
+    onPreviewStory?.(storyId);
+  };
 
   return (
     <aside
@@ -69,38 +68,86 @@ export function StorySidebar({ isCollapsed, onToggle }: StorySidebarProps) {
         )}
 
         <div className="space-y-1">
-          {mockStories.map((story) => (
-            <button
+          {/* Loading state */}
+          {isLoading && (
+            <>
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="p-3 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="w-5 h-5 rounded" />
+                    {!isCollapsed && (
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-3/4" />
+                        <Skeleton className="h-3 w-1/2" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+
+          {/* Error state */}
+          {error && !isCollapsed && (
+            <p className="text-sm text-destructive px-3 py-2">
+              Failed to load stories
+            </p>
+          )}
+
+          {/* Stories */}
+          {stories?.map((story) => (
+            <div
               key={story.id}
-              onClick={() => setActiveStory(story.id)}
               className={cn(
-                "w-full flex items-center gap-3 p-3 rounded-lg transition-colors",
+                "w-full flex items-center gap-3 p-3 rounded-lg transition-colors group",
                 activeStory === story.id
                   ? "bg-sidebar-accent text-sidebar-foreground"
                   : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
               )}
             >
-              <BookOpen className="w-5 h-5 shrink-0" />
-              {!isCollapsed && (
-                <div className="flex-1 text-left min-w-0">
-                  <p className="text-base font-medium truncate">{story.title}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-sm text-muted-foreground">{story.date}</span>
-                    <span
-                      className={cn(
-                        "text-xs px-2 py-0.5 rounded-full font-medium",
-                        story.status === "completed"
-                          ? "bg-timeline-complete/20 text-timeline-complete"
-                          : "bg-primary/20 text-primary"
-                      )}
-                    >
-                      {story.status === "completed" ? "Done" : "In Progress"}
-                    </span>
+              <button
+                onClick={() => setActiveStory(story.id)}
+                className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                aria-label={`Select story: ${story.title}`}
+              >
+                <BookOpen className="w-5 h-5 shrink-0" />
+                {!isCollapsed && (
+                  <div className="flex-1 min-w-0">
+                    <p className="text-base font-medium truncate">{story.title}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-sm text-muted-foreground">
+                        {new Date(story.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
                   </div>
-                </div>
+                )}
+              </button>
+
+              {/* Preview button - only show when expanded */}
+              {!isCollapsed && (
+                <button
+                  onClick={(e) => handlePreviewClick(e, story.id)}
+                  className={cn(
+                    "p-2 rounded-lg transition-all",
+                    "opacity-0 group-hover:opacity-100",
+                    "hover:bg-primary/10 text-muted-foreground hover:text-primary",
+                    "focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  )}
+                  aria-label={`Preview snippets for ${story.title}`}
+                  tabIndex={0}
+                >
+                  <Eye className="w-4 h-4" />
+                </button>
               )}
-            </button>
+            </div>
           ))}
+
+          {/* Empty state */}
+          {!isLoading && !error && stories?.length === 0 && !isCollapsed && (
+            <p className="text-sm text-muted-foreground px-3 py-4 text-center">
+              No stories yet. Create your first one!
+            </p>
+          )}
         </div>
       </div>
 
