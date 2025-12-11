@@ -136,7 +136,7 @@ export default function MyStories() {
                   key={story.id}
                   id={story.id.toString()}
                   title={story.title}
-                  lastEdited={formatDistanceToNow(new Date(story.updated_at), { addSuffix: true })}
+                  lastEdited={story.updated_at || story.created_at ? formatDistanceToNow(new Date(story.updated_at || story.created_at), { addSuffix: true }) : 'Just now'}
                   progress=""
                   status="in-progress"
                   onContinue={handleContinue}
