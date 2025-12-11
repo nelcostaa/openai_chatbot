@@ -213,6 +213,24 @@ Think of completion like a senior engineer would: it's not done until it actuall
 - Did I update the docs to match what I changed?
 - Did I clean up after myself? (No temp files, debug code, console.logs)
 
+**Multi-Layer Verification for Distributed Systems:**
+
+In full-stack applications, don't claim success when only one layer returns success. Verify the entire chain executes and produces visible user-facing results.
+
+- Backend returns 200 OK → ALSO verify frontend receives response
+- Frontend receives response → ALSO verify UI renders the data
+- UI renders → ALSO verify data persists across page refresh
+- Database mutation succeeds → ALSO verify UI reflects the change
+
+Example verification chain for chat message feature:
+1. ✅ Backend POST /api/messages returns 200 OK
+2. ✅ Frontend axios call resolves successfully
+3. ✅ Message appears in chat UI immediately
+4. ✅ Page refresh still shows the message (database persistence verified)
+5. ✅ Second message continues conversation (state synchronization verified)
+
+Only after ALL layers verified can you declare the feature working.
+
 **Complete entire scope:**
 - Task A reveals issue B → fix both
 - Found 3 errors → fix all 3
@@ -641,6 +659,45 @@ const response = await fetch('/api/chat', {
 });
 ```
 
+### Backend-Frontend Type Contract Verification
+
+**Before creating API response schemas, read actual backend model definitions to match types exactly.**
+
+Common type mismatches that cause validation errors:
+- Backend uses SQLAlchemy `DateTime` → Pydantic response must use Python `datetime` (not `str`)
+- Backend uses `Column(Integer)` → Pydantic must use `int` (not string ID)
+- Backend has optional fields → Pydantic must mark `Optional[T]` or provide defaults
+
+**Correct workflow:**
+```python
+# 1. Read the actual SQLAlchemy model first
+class Message(Base):
+    id = Column(Integer, primary_key=True)
+    created_at = Column(DateTime, default=datetime.utcnow)  # ← DateTime type
+    content = Column(Text, nullable=False)
+
+# 2. Match Pydantic response schema to actual types
+from datetime import datetime  # ← Import Python datetime
+
+class MessageResponse(BaseModel):
+    id: int
+    created_at: datetime  # ← Use datetime, NOT str
+    content: str
+    
+    class Config:
+        from_attributes = True  # Enable ORM mode
+```
+
+**Anti-pattern (causes validation errors):**
+```python
+# ❌ DON'T guess types without checking the model
+class MessageResponse(BaseModel):
+    id: int
+    created_at: str  # ← Wrong! Backend returns datetime object
+    content: str
+# Result: FastAPI ResponseValidationError - datetime cannot be assigned to str
+```
+
 ### Input Validation & Sanitization
 
 **Always validate and sanitize inputs before sending to API models.**
@@ -825,6 +882,46 @@ interface ChatResponse {
 - Test retry logic with simulated failures
 - Use environment-specific test keys
 - Mock API calls in unit tests, use real API in integration tests
+
+### State Persistence & Source of Truth
+
+**When implementing features with persistent data, ensure frontend fetches from backend/database rather than using hardcoded local state.**
+
+Common anti-pattern - hardcoded messages in React component:
+```javascript
+// ❌ DON'T hardcode data that should persist
+const ChatArea = () => {
+  const [messages] = useState([
+    { id: 1, content: "Welcome!" },
+    { id: 2, content: "How are you?" }
+  ]);
+  // Messages lost on page refresh, not synced with database
+}
+```
+
+Correct pattern - fetch from API:
+```javascript
+// ✅ DO fetch from backend/database
+const ChatArea = ({ storyId }) => {
+  const { data: messages = [] } = useQuery({
+    queryKey: ['messages', storyId],
+    queryFn: () => api.get(`/api/stories/${storyId}/messages`)
+  });
+  // Messages persist, sync with database, survive page refresh
+}
+```
+
+**React Query cache invalidation pattern:**
+After mutations, invalidate cache to trigger refetch:
+```javascript
+const sendMessage = useMutation({
+  mutationFn: (msg) => api.post(`/api/messages`, msg),
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ['messages', storyId] });
+    // ✅ Triggers refetch, UI updates with latest database state
+  }
+});
+```
 
 ### Frontend Integration
 
