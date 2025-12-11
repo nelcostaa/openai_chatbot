@@ -59,13 +59,13 @@ class TestJWTTokens:
         """Should decode a valid token."""
         user_id = "123"
         token = create_access_token({"sub": user_id})
-        
+
         payload = decode_access_token(token)
-        
+
         assert payload is not None
         assert payload["sub"] == user_id
         assert "exp" in payload
-    
+
     def test_decode_invalid_token(self):
         """Should return None for invalid token."""
         invalid_token = "invalid.jwt.token"
@@ -230,9 +230,9 @@ class TestAuthEndpoints:
         """Should return user profile with valid token."""
         from backend.app.api.endpoints.auth import get_db
         from backend.app.main import app
-        
+
         token = create_access_token({"sub": str(sample_user.id)})
-        
+
         def override_get_db():
             yield mock_db_session
 

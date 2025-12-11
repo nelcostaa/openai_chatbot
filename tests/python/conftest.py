@@ -67,10 +67,11 @@ def mock_db_session():
     from sqlalchemy.orm import sessionmaker
 
     from backend.app.db.base_class import Base
+    from backend.app.models.message import Message  # noqa: F401
+    from backend.app.models.story import Story  # noqa: F401
+
     # Import all models so Base.metadata knows about them
     from backend.app.models.user import User  # noqa: F401
-    from backend.app.models.story import Story  # noqa: F401
-    from backend.app.models.message import Message  # noqa: F401
 
     # Create in-memory SQLite database with thread safety disabled
     engine = create_engine(
