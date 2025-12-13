@@ -17,7 +17,7 @@ interface PhaseTimelineProps {
   currentPhase?: string;
 }
 
-export function PhaseTimeline({ 
+export function PhaseTimeline({
   phases: legacyPhases,
   phaseOrder = [],
   currentPhaseIndex = 0,
@@ -26,16 +26,16 @@ export function PhaseTimeline({
   currentPhase = ""
 }: PhaseTimelineProps) {
   // Build phases from phaseOrder if provided, otherwise use legacy phases
-  const phases: Phase[] = phaseOrder.length > 0 
+  const phases: Phase[] = phaseOrder.length > 0
     ? phaseOrder.map((phaseId, index) => ({
-        id: phaseId,
-        label: PHASE_DISPLAY_INFO[phaseId]?.label || phaseId,
-        status: index < currentPhaseIndex 
-          ? "complete" as const
-          : index === currentPhaseIndex 
+      id: phaseId,
+      label: PHASE_DISPLAY_INFO[phaseId]?.label || phaseId,
+      status: index < currentPhaseIndex
+        ? "complete" as const
+        : index === currentPhaseIndex
           ? "active" as const
           : "inactive" as const,
-      }))
+    }))
     : legacyPhases || [];
 
   // Get current phase info for header
@@ -63,7 +63,7 @@ export function PhaseTimeline({
           Chapter {stepNumber} of {totalStepCount}
         </span>
       </div>
-      
+
       <div className="flex items-center gap-2">
         {phases.map((phase, index) => (
           <div key={phase.id} className="flex items-center flex-1">
@@ -91,7 +91,7 @@ export function PhaseTimeline({
                 {phase.label}
               </span>
             </div>
-            
+
             {index < phases.length - 1 && (
               <div
                 className={cn(

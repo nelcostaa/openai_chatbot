@@ -1,4 +1,5 @@
 from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -43,7 +44,7 @@ def chat_with_agent(
     Send a message to the AI interviewer for a specific story.
 
     Requires authentication. User must own the story.
-    
+
     Response includes phase metadata for frontend phase tracking:
     - phase: Current phase name
     - phase_order: List of phases for this user's age range
@@ -68,9 +69,7 @@ def chat_with_agent(
     try:
         # Process the chat (Save User -> Think -> Save AI)
         ai_message, phase_metadata = service.process_chat(
-            story_id, 
-            request.message,
-            advance_phase=request.advance_phase or False
+            story_id, request.message, advance_phase=request.advance_phase or False
         )
 
         return {
@@ -87,4 +86,5 @@ def chat_with_agent(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         print(f"Error processing chat: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
         raise HTTPException(status_code=500, detail="Internal Server Error")

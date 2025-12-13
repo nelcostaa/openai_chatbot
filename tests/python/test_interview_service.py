@@ -57,7 +57,7 @@ class TestInterviewService:
             assert result.content == "Welcome to your story!"
             assert result.story_id == sample_story.id
             assert result.phase_context == "GREETING"
-            
+
             # Check metadata structure
             assert "phase" in metadata
             assert "phase_order" in metadata

@@ -17,10 +17,10 @@ function filterSystemMarkers(content: string): string {
 
 export function ChatMessage({ type, content, isTyping }: ChatMessageProps) {
   const isAI = type === "ai";
-  
+
   // Filter system markers from user messages
   const displayContent = filterSystemMarkers(content);
-  
+
   // Don't render empty messages (e.g., messages that were only markers)
   if (!isTyping && !displayContent) {
     return null;

@@ -1,4 +1,5 @@
 from typing import Dict, List, Optional, Tuple
+
 from langchain_core.messages import AIMessage, HumanMessage
 from sqlalchemy.orm import Session
 
@@ -6,7 +7,6 @@ from backend.app.core.agent import agent_app
 from backend.app.db.base import Base  # Ensure all models are registered
 from backend.app.models.message import Message
 from backend.app.models.story import Story
-
 
 # Age range to phase mapping - determines which life stages to include
 AGE_PHASE_MAPPING: Dict[str, List[str]] = {
@@ -226,10 +226,11 @@ class InterviewService:
         if "[Age selected via button:" in message:
             # Extract age range from marker like "[Age selected via button: 31_45]"
             import re
-            match = re.search(r'\[Age selected via button: ([^\]]+)\]', message)
+
+            match = re.search(r"\[Age selected via button: ([^\]]+)\]", message)
             if match:
                 return match.group(1)
-        
+
         # Check for direct number input (1-5)
         clean = message.strip()
         age_map = {
@@ -241,7 +242,7 @@ class InterviewService:
         }
         if clean in age_map:
             return age_map[clean]
-        
+
         return None
 
     def detect_phase_advance(self, message: str) -> Optional[str]:
@@ -249,7 +250,8 @@ class InterviewService:
         # Check for explicit marker
         if "[Moving to next phase:" in message:
             import re
-            match = re.search(r'\[Moving to next phase: ([^\]]+)\]', message)
+
+            match = re.search(r"\[Moving to next phase: ([^\]]+)\]", message)
             if match:
                 return match.group(1)
         return None
@@ -258,20 +260,17 @@ class InterviewService:
         """Advance story to next phase and return new phase name."""
         phase_order = self.get_phase_order(story.age_range)
         current_idx = self.get_phase_index(story.current_phase, phase_order)
-        
+
         if current_idx < len(phase_order) - 1:
             new_phase = phase_order[current_idx + 1]
             story.current_phase = new_phase
             self.db.commit()
             return new_phase
-        
+
         return story.current_phase
 
     def process_chat(
-        self, 
-        story_id: int, 
-        user_content: str,
-        advance_phase: bool = False
+        self, story_id: int, user_content: str, advance_phase: bool = False
     ) -> Tuple[Message, Dict]:
         """
         Orchestrates the chat flow:
@@ -354,7 +353,7 @@ class InterviewService:
         # 9. Build phase metadata for frontend
         phase_order = self.get_phase_order(story.age_range)
         phase_index = self.get_phase_index(story.current_phase, phase_order)
-        
+
         phase_metadata = {
             "phase": story.current_phase,
             "phase_order": phase_order,

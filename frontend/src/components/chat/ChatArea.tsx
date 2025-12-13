@@ -32,7 +32,7 @@ export function ChatArea({ sendMessage, projectId }: ChatAreaProps) {
   const { data: apiMessages = [], isLoading } = useProjectMessages(projectId);
   const [selectedAge, setSelectedAge] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  
+
   // Phase state tracking
   const [phaseState, setPhaseState] = useState<PhaseState>({
     phase: "GREETING",
@@ -104,9 +104,9 @@ export function ChatArea({ sendMessage, projectId }: ChatAreaProps) {
       const nextPhase = phaseState.phaseOrder[nextIndex];
       const marker = `[Moving to next phase: ${nextPhase}]`;
       try {
-        const response = await sendMessage.mutateAsync({ 
+        const response = await sendMessage.mutateAsync({
           message: marker,
-          advance_phase: true 
+          advance_phase: true
         });
         updatePhaseState(response);
         queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'messages'] });
@@ -126,7 +126,7 @@ export function ChatArea({ sendMessage, projectId }: ChatAreaProps) {
 
   // Get next phase name for button display
   const nextPhaseIndex = phaseState.phaseIndex + 1;
-  const nextPhaseName = nextPhaseIndex < phaseState.phaseOrder.length 
+  const nextPhaseName = nextPhaseIndex < phaseState.phaseOrder.length
     ? PHASE_DISPLAY_INFO[phaseState.phaseOrder[nextPhaseIndex]]?.label || phaseState.phaseOrder[nextPhaseIndex]
     : "";
 
@@ -138,14 +138,14 @@ export function ChatArea({ sendMessage, projectId }: ChatAreaProps) {
   };
 
   // Show welcome message if no messages and in GREETING phase
-  const displayMessages = messages.length === 0 && showAgeSelection 
-    ? [defaultWelcomeMessage] 
+  const displayMessages = messages.length === 0 && showAgeSelection
+    ? [defaultWelcomeMessage]
     : messages;
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-background">
       {/* Phase Timeline - shows after age selection */}
-      <PhaseTimeline 
+      <PhaseTimeline
         phaseOrder={phaseState.phaseOrder}
         currentPhaseIndex={phaseState.phaseIndex}
         currentPhase={phaseState.phase}
@@ -156,25 +156,25 @@ export function ChatArea({ sendMessage, projectId }: ChatAreaProps) {
           {displayMessages.map((message) => (
             <ChatMessage key={message.id} type={message.type} content={message.content} />
           ))}
-          
+
           {/* Age Selection Cards - show in GREETING phase */}
           {showAgeSelection && (
-            <AgeSelectionCards 
-              onSelect={handleAgeSelect} 
+            <AgeSelectionCards
+              onSelect={handleAgeSelect}
               selectedAge={selectedAge || undefined}
               disabled={sendMessage.isPending}
             />
           )}
-          
+
           {sendMessage.isPending && <ChatMessage type="ai" content="" isTyping />}
           <div ref={messagesEndRef} />
         </div>
       </div>
 
-      <InputBar 
-        onSend={handleSendMessage} 
+      <InputBar
+        onSend={handleSendMessage}
         onNextChapter={handleNextChapter}
-        disabled={sendMessage.isPending} 
+        disabled={sendMessage.isPending}
         showNextChapter={phaseState.ageRange !== null}
         currentPhase={phaseState.phase}
         nextPhaseName={nextPhaseName}

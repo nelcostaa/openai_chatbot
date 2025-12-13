@@ -15,10 +15,10 @@ interface InputBarProps {
 // Phases where "Next Chapter" button should NOT appear
 const PHASES_WITHOUT_NEXT_BUTTON = ["GREETING", "SYNTHESIS"];
 
-export function InputBar({ 
-  onSend, 
+export function InputBar({
+  onSend,
   onNextChapter,
-  disabled, 
+  disabled,
   showNextChapter = false,
   currentPhase = "",
   nextPhaseName = ""
@@ -40,7 +40,7 @@ export function InputBar({
   };
 
   // Determine if we should show the Next Chapter button
-  const shouldShowNextChapter = showNextChapter && 
+  const shouldShowNextChapter = showNextChapter &&
     !PHASES_WITHOUT_NEXT_BUTTON.includes(currentPhase) &&
     currentPhase !== "";
 
@@ -101,7 +101,7 @@ export function InputBar({
         <p className="text-sm text-muted-foreground">
           Take your time. There's no rush.
         </p>
-        
+
         {shouldShowNextChapter && (
           <Button
             type="button"
