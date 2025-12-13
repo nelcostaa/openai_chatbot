@@ -25,21 +25,37 @@ interface ChatAreaProps {
     isPending: boolean;
   };
   projectId: number | undefined;
+  initialPhase?: string;
+  initialAgeRange?: string | null;
 }
 
-export function ChatArea({ sendMessage, projectId }: ChatAreaProps) {
+export function ChatArea({ sendMessage, projectId, initialPhase, initialAgeRange }: ChatAreaProps) {
   const queryClient = useQueryClient();
   const { data: apiMessages = [], isLoading } = useProjectMessages(projectId);
-  const [selectedAge, setSelectedAge] = useState<string | null>(null);
+  const [selectedAge, setSelectedAge] = useState<string | null>(initialAgeRange || null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Phase state tracking
+  // Phase state tracking - initialize with project data if available
   const [phaseState, setPhaseState] = useState<PhaseState>({
-    phase: "GREETING",
+    phase: initialPhase || "GREETING",
     phaseOrder: [],
     phaseIndex: 0,
-    ageRange: null,
+    ageRange: initialAgeRange || null,
   });
+
+  // Update state when project data loads (for returning to existing projects)
+  useEffect(() => {
+    if (initialPhase || initialAgeRange) {
+      setPhaseState(prev => ({
+        ...prev,
+        phase: initialPhase || prev.phase,
+        ageRange: initialAgeRange || prev.ageRange,
+      }));
+      if (initialAgeRange) {
+        setSelectedAge(initialAgeRange);
+      }
+    }
+  }, [initialPhase, initialAgeRange]);
 
   // Determine if age selection should be shown
   // Show when: in GREETING phase AND no age selected yet
