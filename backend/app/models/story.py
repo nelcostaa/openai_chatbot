@@ -29,3 +29,6 @@ class Story(Base):
     summaries = relationship(
         "Summary", back_populates="story", cascade="all, delete-orphan"
     )
+    snippets = relationship(
+        "Snippet", back_populates="story", cascade="all, delete-orphan"
+    )

@@ -32,3 +32,6 @@ class User(Base):
         "Story", back_populates="owner", cascade="all, delete-orphan"
     )
     subscription = relationship("Subscription", back_populates="user", uselist=False)
+    snippets = relationship(
+        "Snippet", back_populates="owner", cascade="all, delete-orphan"
+    )
