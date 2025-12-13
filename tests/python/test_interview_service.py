@@ -15,7 +15,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from backend.app.services.interview import PHASE_PROMPTS, InterviewService
+from backend.app.services.interview import PHASE_CONFIG, InterviewService
 
 
 class TestInterviewService:
@@ -50,13 +50,17 @@ class TestInterviewService:
                 "messages": [AIMessage(content="Welcome to your story!")]
             }
 
-            result = service.process_chat(sample_story.id, "Hello")
+            result, metadata = service.process_chat(sample_story.id, "Hello")
 
             # Check AI message was saved
             assert result.role == "assistant"
             assert result.content == "Welcome to your story!"
             assert result.story_id == sample_story.id
             assert result.phase_context == "GREETING"
+            
+            # Check metadata structure
+            assert "phase" in metadata
+            assert "phase_order" in metadata
 
     def test_process_chat_loads_conversation_history(
         self, mock_db_session, sample_story
@@ -122,7 +126,7 @@ class TestInterviewService:
             call_args = mock_agent.invoke.call_args[0][0]
             phase_instruction = call_args["phase_instruction"]
 
-            assert phase_instruction == PHASE_PROMPTS["CHILDHOOD"]
+            assert phase_instruction == PHASE_CONFIG["CHILDHOOD"]["prompt"]
             assert "childhood memories" in phase_instruction.lower()
 
     def test_process_chat_uses_default_phase_for_unknown(
@@ -145,7 +149,7 @@ class TestInterviewService:
             call_args = mock_agent.invoke.call_args[0][0]
             phase_instruction = call_args["phase_instruction"]
 
-            assert phase_instruction == PHASE_PROMPTS["GREETING"]
+            assert phase_instruction == PHASE_CONFIG["GREETING"]["prompt"]
 
     def test_process_chat_raises_on_missing_story(self, mock_db_session):
         """Should raise ValueError for non-existent story."""
