@@ -6,7 +6,7 @@ export interface Message {
     content: string;
     timestamp?: string;
     id?: number;
-    story_id?: number;
+    project_id?: number;
     phase_context?: string;
     created_at?: string;
 }
@@ -19,35 +19,40 @@ interface SendMessageResponse {
     response: string;
 }
 
-// Fetch messages for a story
-export const useStoryMessages = (storyId: number | undefined) => {
+// Fetch messages for a project
+export const useProjectMessages = (projectId: number | undefined) => {
     return useQuery({
-        queryKey: ['stories', storyId, 'messages'],
+        queryKey: ['projects', projectId, 'messages'],
         queryFn: async () => {
-            if (!storyId) {
+            if (!projectId) {
                 return [];
             }
-            const response = await api.get<Message[]>(`/api/stories/${storyId}/messages`);
+            // API endpoint remains /api/stories/{id}/messages (backend unchanged)
+            const response = await api.get<Message[]>(`/api/stories/${projectId}/messages`);
             return response.data;
         },
-        enabled: !!storyId,
+        enabled: !!projectId,
         staleTime: 30 * 1000, // 30 seconds
         refetchInterval: 5000, // Refetch every 5 seconds to get new messages
     });
 };
 
-// Send message to story interview endpoint
-export const useSendMessage = (storyId: number | undefined) => {
+// Send message to project interview endpoint
+export const useSendMessage = (projectId: number | undefined) => {
     return useMutation({
         mutationFn: async (data: SendMessageDto) => {
-            if (!storyId) {
-                throw new Error('Story ID is required');
+            if (!projectId) {
+                throw new Error('Project ID is required');
             }
+            // API endpoint remains /api/interview/{id} (backend unchanged)
             const response = await api.post<SendMessageResponse>(
-                `/api/interview/${storyId}`,
+                `/api/interview/${projectId}`,
                 data
             );
             return response.data;
         },
     });
 };
+
+// Legacy export for backward compatibility
+export { useProjectMessages as useStoryMessages };

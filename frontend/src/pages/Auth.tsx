@@ -97,7 +97,7 @@ export default function Auth() {
             <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-5">
               <BookOpen className="w-8 h-8 text-primary" />
             </div>
-            <h1 className="text-2xl font-story font-semibold text-foreground">Life Story</h1>
+            <h1 className="text-2xl font-project font-semibold text-foreground">Life Story</h1>
             <p className="text-lg text-muted-foreground mt-2 text-center">
               {isLogin ? "Welcome back!" : "Create your account"}
             </p>

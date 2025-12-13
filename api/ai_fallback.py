@@ -448,8 +448,7 @@ def generate_snippets(
 
     # Filter out system messages and extract only user story content
     story_messages = [
-        msg for msg in messages 
-        if msg.get("role") in ("user", "assistant")
+        msg for msg in messages if msg.get("role") in ("user", "assistant")
     ]
 
     if not story_messages:
@@ -462,10 +461,12 @@ def generate_snippets(
         }
 
     # Build the story text for context
-    story_text = "\n".join([
-        f"{msg.get('role', 'unknown').upper()}: {msg.get('content', '')}"
-        for msg in story_messages
-    ])
+    story_text = "\n".join(
+        [
+            f"{msg.get('role', 'unknown').upper()}: {msg.get('content', '')}"
+            for msg in story_messages
+        ]
+    )
 
     # System instruction for structured JSON output
     system_instruction = """You are a story curator creating content for printable game cards.
@@ -523,7 +524,7 @@ Remember: Output ONLY the JSON object with snippets array. Each snippet max 300 
     # Parse JSON response
     try:
         response_text = result["content"].strip()
-        
+
         # Handle potential markdown code blocks
         if response_text.startswith("```"):
             # Remove markdown code fence
@@ -534,7 +535,7 @@ Remember: Output ONLY the JSON object with snippets array. Each snippet max 300 
             if lines and lines[-1].strip() == "```":
                 lines = lines[:-1]
             response_text = "\n".join(lines)
-        
+
         parsed = json.loads(response_text)
         snippets = parsed.get("snippets", [])
 
@@ -543,7 +544,7 @@ Remember: Output ONLY the JSON object with snippets array. Each snippet max 300 
         for snippet in snippets:
             if not isinstance(snippet, dict):
                 continue
-            
+
             title = snippet.get("title", "").strip()
             content = snippet.get("content", "").strip()
             phase = snippet.get("phase", "PRESENT").upper()
@@ -557,12 +558,14 @@ Remember: Output ONLY the JSON object with snippets array. Each snippet max 300 
             if len(content) > 300:
                 content = content[:297] + "..."
 
-            validated_snippets.append({
-                "title": title,
-                "content": content,
-                "phase": phase,
-                "theme": theme,
-            })
+            validated_snippets.append(
+                {
+                    "title": title,
+                    "content": content,
+                    "phase": phase,
+                    "theme": theme,
+                }
+            )
 
         return {
             "success": True,

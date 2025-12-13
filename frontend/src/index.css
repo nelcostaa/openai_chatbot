@@ -60,8 +60,8 @@
         --radius: 0.5rem;
 
         /* Custom tokens - Life theme */
-        --story-bg: 30 55% 96%;
-        --story-text: 20 35% 25%;
+        --project-bg: 30 55% 96%;
+        --project-text: 20 35% 25%;
         --ai-bubble: 30 50% 94%;
         --user-bubble: 18 65% 68%;
         --timeline-active: 18 65% 68%;
@@ -89,7 +89,7 @@
         font-family: 'Source Sans 3', system-ui, sans-serif;
     }
 
-    .font-story {
+    .font-project {
         font-family: 'Lora', Georgia, serif;
     }
 }

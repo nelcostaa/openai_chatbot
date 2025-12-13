@@ -14,7 +14,7 @@ export default function Navbar() {
                         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#5C3D2E] to-[#4A2F1F] flex items-center justify-center transition-transform group-hover:scale-105">
                             <BookOpen className="w-4 h-4 text-white" />
                         </div>
-                        <span className="text-base md:text-lg font-semibold text-[#5C3D2E] font-story hidden sm:inline">
+                        <span className="text-base md:text-lg font-semibold text-[#5C3D2E] font-project hidden sm:inline">
                             Life Story
                         </span>
                     </Link>

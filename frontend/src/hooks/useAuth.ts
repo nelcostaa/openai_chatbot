@@ -38,12 +38,25 @@ export const useRegister = () => {
             return response.data;
         },
         onSuccess: async (data) => {
-            // Fetch user profile after registration
-            const userResponse = await api.get<User>('/api/auth/me', {
-                headers: { Authorization: `Bearer ${data.access_token}` },
-            });
-            login(data.access_token, userResponse.data);
-            navigate('/dashboard');
+            try {
+                const userResponse = await api.get<User>('/api/auth/me', {
+                    headers: { Authorization: `Bearer ${data.access_token}` },
+                });
+
+                login(data.access_token, userResponse.data);
+
+                // Create a default project for the new user (API endpoint remains /api/stories/)
+                const response = await api.post('/api/stories', {
+                    title: 'My First Project',
+                    status: 'active',
+                });
+
+                navigate(`/project/${response.data.id}`);
+
+            } catch (err) {
+                console.error('Error creating project:', err);
+                navigate('/onboarding');
+            }
         },
     });
 };

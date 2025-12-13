@@ -24,6 +24,7 @@ router = APIRouter()
 
 class SnippetItem(BaseModel):
     """Individual snippet for a game card."""
+
     title: str
     content: str
     phase: str
@@ -32,6 +33,7 @@ class SnippetItem(BaseModel):
 
 class SnippetsResponse(BaseModel):
     """Response from snippet generation."""
+
     success: bool
     snippets: List[SnippetItem]
     count: int
@@ -50,18 +52,18 @@ def generate_snippets(
 ):
     """
     Generate story snippets (game cards) for a specific story.
-    
+
     This endpoint fetches all messages from the story, sends them to
     Gemini for analysis, and returns 3-8 snippets (max 300 chars each)
     suitable for printing on game cards.
-    
+
     Requires authentication. User must own the story.
-    
+
     Args:
         story_id: ID of the story to generate snippets for
         current_user: Authenticated user (injected)
         db: Database session (injected)
-        
+
     Returns:
         SnippetsResponse with generated snippets
     """
@@ -82,10 +84,10 @@ def generate_snippets(
 
     # Generate snippets
     service = SnippetService(db)
-    
+
     try:
         result = service.generate_snippets(story_id)
-        
+
         if not result["success"]:
             # Return the error in the response body, not as HTTP error
             # This allows frontend to show a friendly message
@@ -99,10 +101,7 @@ def generate_snippets(
 
         return SnippetsResponse(
             success=True,
-            snippets=[
-                SnippetItem(**snippet) 
-                for snippet in result["snippets"]
-            ],
+            snippets=[SnippetItem(**snippet) for snippet in result["snippets"]],
             count=result["count"],
             model=result.get("model"),
             error=None,

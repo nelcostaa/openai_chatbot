@@ -45,7 +45,7 @@ export function ChapterSummaryDrawer({
               <Feather className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <h2 className="font-story text-xl font-semibold text-foreground">
+              <h2 className="font-project text-xl font-semibold text-foreground">
                 Your Story So Far
               </h2>
               <p className="text-sm text-muted-foreground">
@@ -81,7 +81,7 @@ export function ChapterSummaryDrawer({
                       {snippet.timestamp}
                     </span>
                   </div>
-                  <p className="font-story text-base text-foreground leading-relaxed pl-1 border-l-2 border-primary/30">
+                  <p className="font-project text-base text-foreground leading-relaxed pl-1 border-l-2 border-primary/30">
                     {snippet.content}
                   </p>
                 </div>
@@ -92,7 +92,7 @@ export function ChapterSummaryDrawer({
               <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
                 <BookOpen className="w-8 h-8 text-primary" />
               </div>
-              <h3 className="font-story text-lg font-semibold text-foreground mb-2">
+              <h3 className="font-project text-lg font-semibold text-foreground mb-2">
                 No memories yet
               </h3>
               <p className="text-muted-foreground text-base max-w-xs">

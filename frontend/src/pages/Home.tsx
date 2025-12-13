@@ -52,7 +52,7 @@ export default function Home() {
 
         {/* Content */}
         <div className="relative z-10 max-w-3xl mx-auto text-center">
-          <h1 className="text-4xl md:text-6xl font-story font-bold text-white leading-tight mb-8 drop-shadow-lg">
+          <h1 className="text-4xl md:text-6xl font-project font-bold text-white leading-tight mb-8 drop-shadow-lg">
             Your Story Matters.
             <br />
             <span className="text-[#FFD4A3]">Let's Write It Together.</span>
@@ -85,7 +85,7 @@ export default function Home() {
       {/* Features Section */}
       <section className="py-20 px-6 bg-gradient-to-b from-background to-[#FFF8F0]">
         <div className="max-w-4xl mx-auto">
-          <h2 className="text-3xl font-story font-semibold text-[#5C3D2E] text-center mb-4">
+          <h2 className="text-3xl font-project font-semibold text-[#5C3D2E] text-center mb-4">
             How It Works
           </h2>
           <p className="text-lg text-[#8B6F5C] text-center mb-16 max-w-xl mx-auto">
@@ -113,7 +113,7 @@ export default function Home() {
       {/* Testimonial Section */}
       <section className="py-16 px-6 bg-[#FFE8D6]/60">
         <div className="max-w-2xl mx-auto text-center">
-          <blockquote className="text-2xl font-story italic text-[#5C3D2E] mb-6 leading-relaxed">
+          <blockquote className="text-2xl font-project italic text-[#5C3D2E] mb-6 leading-relaxed">
             "This helped me remember stories I thought I'd forgotten.
             My grandchildren now know where they come from."
           </blockquote>
@@ -126,7 +126,7 @@ export default function Home() {
       {/* CTA Section */}
       <section className="py-20 px-6 bg-gradient-to-b from-[#FFF8F0] to-background">
         <div className="max-w-2xl mx-auto text-center">
-          <h2 className="text-3xl font-story font-semibold text-[#5C3D2E] mb-6">
+          <h2 className="text-3xl font-project font-semibold text-[#5C3D2E] mb-6">
             Ready to Begin?
           </h2>
           <p className="text-lg text-[#8B6F5C] mb-10">

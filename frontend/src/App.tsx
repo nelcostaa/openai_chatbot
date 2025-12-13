@@ -6,8 +6,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import Home from "./pages/Home";
 import Auth from "./pages/Auth";
-import MyStories from "./pages/MyStories";
-import StoryInterview from "./pages/StoryInterview";
+import MyProjects from "./pages/MyProjects";
+import ProjectInterview from "./pages/ProjectInterview";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -35,15 +35,15 @@ const App = () => (
             path="/dashboard"
             element={
               <ProtectedRoute>
-                <MyStories />
+                <MyProjects />
               </ProtectedRoute>
             }
           />
           <Route
-            path="/story/:id"
+            path="/project/:id"
             element={
               <ProtectedRoute>
-                <StoryInterview />
+                <ProjectInterview />
               </ProtectedRoute>
             }
           />

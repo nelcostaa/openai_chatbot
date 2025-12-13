@@ -70,9 +70,9 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
-        story: {
-          bg: "hsl(var(--story-bg))",
-          text: "hsl(var(--story-text))",
+        project: {
+          bg: "hsl(var(--project-bg))",
+          text: "hsl(var(--project-text))",
         },
         bubble: {
           ai: "hsl(var(--ai-bubble))",

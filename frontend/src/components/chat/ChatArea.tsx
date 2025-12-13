@@ -3,7 +3,7 @@ import { PhaseTimeline } from "./PhaseTimeline";
 import { ChatMessage } from "./ChatMessage";
 import { AgeSelectionCards } from "./AgeSelectionCards";
 import { InputBar } from "./InputBar";
-import { useStoryMessages } from "@/hooks/useChat";
+import { useProjectMessages } from "@/hooks/useChat";
 import { useQueryClient } from "@tanstack/react-query";
 
 interface Message {
@@ -24,12 +24,12 @@ const initialPhases = [
 
 interface ChatAreaProps {
   sendMessage: any;
-  storyId: number | undefined;
+  projectId: number | undefined;
 }
 
-export function ChatArea({ sendMessage, storyId }: ChatAreaProps) {
+export function ChatArea({ sendMessage, projectId }: ChatAreaProps) {
   const queryClient = useQueryClient();
-  const { data: apiMessages = [], isLoading } = useStoryMessages(storyId);
+  const { data: apiMessages = [], isLoading } = useProjectMessages(projectId);
   const [selectedAge, setSelectedAge] = useState<string>("31-45");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -53,7 +53,7 @@ export function ChatArea({ sendMessage, storyId }: ChatAreaProps) {
     try {
       await sendMessage.mutateAsync({ message: content });
       // Invalidate messages query to refetch updated conversation
-      queryClient.invalidateQueries({ queryKey: ['stories', storyId, 'messages'] });
+      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'messages'] });
     } catch (error) {
       console.error("Failed to send message:", error);
     }
