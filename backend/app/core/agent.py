@@ -28,6 +28,7 @@ def get_model_cascade() -> List[str]:
 
     # Default cascade - ordered by rate limits (free tier models)
     return [
+        "gemma-3-12b-it",  # Free tier, new model with good performance
         "gemini-2.0-flash-exp",  # Experimental, fastest
         "gemini-2.0-flash",  # Stable 2.0
         "gemini-2.5-flash",  # Latest stable
@@ -59,12 +60,13 @@ def chatbot_node(state: AgentState):
 
     # Get model cascade
     model_cascade = get_model_cascade()
+    print(f"[Agent] 🔄 Model cascade: {model_cascade}")
 
     # Try each model in cascade
     for attempt_idx, model_name in enumerate(model_cascade):
         try:
             print(
-                f"[Agent] Attempt {attempt_idx + 1}/{len(model_cascade)}: {model_name}"
+                f"[Agent] 🔄 Attempt {attempt_idx + 1}/{len(model_cascade)}: Trying '{model_name}'..."
             )
 
             # Initialize model for this attempt
@@ -74,17 +76,21 @@ def chatbot_node(state: AgentState):
                 temperature=0.7,
                 convert_system_message_to_human=True,
             )
+            print(f"[Agent] 🔄 LLM initialized for {model_name}")
 
             # Call Gemini
+            print(f"[Agent] 🔄 Sending request to {model_name}...")
             response = llm.invoke(full_messages)
 
             # Success!
-            print(f"[Agent] ✅ Success with {model_name}")
+            print(f"[Agent] ✅ SUCCESS with {model_name}!")
             return {"messages": [response]}
 
         except Exception as e:
             error_message = str(e)
-            print(f"[Agent] ❌ {model_name} failed: {error_message}")
+            print(f"[Agent] ❌ {model_name} FAILED")
+            print(f"[Agent] ❌ Error type: {type(e).__name__}")
+            print(f"[Agent] ❌ Error message: {error_message[:200]}")
 
             # Check if rate limit error
             is_rate_limit = any(
@@ -93,10 +99,11 @@ def chatbot_node(state: AgentState):
             )
 
             if is_rate_limit:
-                print(f"[Agent] 🔄 Rate limit on {model_name}, trying next model...")
+                print(f"[Agent] 🔄 Rate limit detected, trying next model...")
 
                 # If last model, raise error
                 if attempt_idx == len(model_cascade) - 1:
+                    print(f"[Agent] ❌ ALL MODELS EXHAUSTED")
                     raise Exception(
                         f"All {len(model_cascade)} models exhausted rate limits"
                     )
