@@ -65,17 +65,25 @@ def mock_db_session():
     """Mock database session for testing."""
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
 
     from backend.app.db.base_class import Base
-    from backend.app.models.message import Message  # noqa: F401
-    from backend.app.models.story import Story  # noqa: F401
 
     # Import all models so Base.metadata knows about them
+    from backend.app.models.message import Message  # noqa: F401
+    from backend.app.models.snippets import Snippet  # noqa: F401
+    from backend.app.models.story import Story  # noqa: F401
+    from backend.app.models.subscriptions import Subscription  # noqa: F401
+    from backend.app.models.summary import Summary  # noqa: F401
     from backend.app.models.user import User  # noqa: F401
 
-    # Create in-memory SQLite database with thread safety disabled
+    # Create in-memory SQLite database with StaticPool to ensure
+    # the same connection is reused (required for :memory: databases
+    # to persist data across multiple session operations)
     engine = create_engine(
-        "sqlite:///:memory:", connect_args={"check_same_thread": False}
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
     )
     Base.metadata.create_all(engine)
 
