@@ -3,6 +3,10 @@ Snippet generation service for creating story game cards.
 
 This service fetches all messages from a story and uses Gemini to generate
 short, impactful snippets (max 300 characters) suitable for printing on cards.
+
+Snippets are persisted to the database and can be retrieved later without
+regeneration. Use get_existing_snippets() to check for cached snippets before
+regenerating.
 """
 
 import json
@@ -15,6 +19,7 @@ from pydantic import SecretStr
 from sqlalchemy.orm import Session
 
 from backend.app.models.message import Message
+from backend.app.models.snippets import Snippet
 from backend.app.models.story import Story
 
 
@@ -25,6 +30,7 @@ def get_model_cascade() -> List[str]:
         return [m.strip() for m in env_models.split(",") if m.strip()]
 
     return [
+        "gemma-3-12b-it",
         "gemini-2.0-flash-exp",
         "gemini-2.0-flash",
         "gemini-2.5-flash",
@@ -35,10 +41,11 @@ def get_model_cascade() -> List[str]:
 
 class SnippetService:
     """
-    Service for generating story snippets (game cards) from conversation history.
+    Service for generating and persisting story snippets (game cards).
 
     Uses Gemini to analyze the story and create 3-8 short, impactful snippets
-    suitable for printing on game cards.
+    suitable for printing on game cards. Snippets are saved to the database
+    for later retrieval.
     """
 
     def __init__(self, db: Session):
@@ -65,9 +72,99 @@ class SnippetService:
             {"role": str(msg.role), "content": str(msg.content)} for msg in messages
         ]
 
+    def get_existing_snippets(self, story_id: int) -> Dict:
+        """
+        Get existing snippets for a story from the database.
+
+        Args:
+            story_id: ID of the story
+
+        Returns:
+            Dict with keys:
+                - success (bool): True
+                - snippets (list): Array of snippet dicts
+                - count (int): Number of snippets
+                - cached (bool): True if snippets exist, False if empty
+                - error (str|None): None
+        """
+        snippets = (
+            self.db.query(Snippet)
+            .filter(Snippet.story_id == story_id)
+            .order_by(Snippet.created_at.asc())
+            .all()
+        )
+
+        snippet_list = [s.to_dict() for s in snippets]
+
+        return {
+            "success": True,
+            "snippets": snippet_list,
+            "count": len(snippet_list),
+            "cached": len(snippet_list) > 0,
+            "error": None,
+        }
+
+    def delete_snippets(self, story_id: int) -> int:
+        """
+        Delete all snippets for a story.
+
+        Args:
+            story_id: ID of the story
+
+        Returns:
+            Number of snippets deleted
+        """
+        deleted = (
+            self.db.query(Snippet)
+            .filter(Snippet.story_id == story_id)
+            .delete(synchronize_session=False)
+        )
+        self.db.commit()
+        return deleted
+
+    def _save_snippets(
+        self, story_id: int, user_id: int, snippets: List[Dict]
+    ) -> List[Snippet]:
+        """
+        Save generated snippets to the database.
+
+        Args:
+            story_id: ID of the story
+            user_id: ID of the user who owns the story
+            snippets: List of snippet dicts with title, content, phase, theme
+
+        Returns:
+            List of created Snippet objects
+        """
+        created = []
+        for snippet_data in snippets:
+            snippet = Snippet(
+                story_id=story_id,
+                user_id=user_id,
+                title=snippet_data["title"],
+                content=snippet_data["content"],
+                phase=snippet_data.get("phase"),
+                theme=snippet_data.get("theme"),
+            )
+            self.db.add(snippet)
+            created.append(snippet)
+
+        self.db.commit()
+
+        # Refresh to get IDs
+        for s in created:
+            self.db.refresh(s)
+
+        return created
+
     def generate_snippets(self, story_id: int) -> Dict:
         """
-        Generate story snippets for a given story.
+        Generate story snippets for a given story and persist to database.
+
+        This method:
+        1. Deletes any existing snippets for the story
+        2. Generates new snippets using AI
+        3. Saves the new snippets to the database
 
         Args:
             story_id: ID of the story to generate snippets for
@@ -80,7 +177,7 @@ class SnippetService:
                 - model (str|None): Model that succeeded
                 - error (str|None): Error message if failed
         """
-        # Verify story exists
+        # Verify story exists and capture user_id immediately
         story = self.db.query(Story).filter(Story.id == story_id).first()
         if not story:
             return {
@@ -90,6 +187,9 @@ class SnippetService:
                 "model": None,
                 "error": f"Story with ID {story_id} not found",
             }
+
+        # Capture user_id before any operations that might expire the session object
+        user_id = story.user_id
 
         # Fetch messages
         messages = self.get_story_messages(story_id)
@@ -101,6 +201,9 @@ class SnippetService:
                 "model": None,
                 "error": "No messages found for this story",
             }
+
+        # Delete existing snippets before regeneration
+        self.delete_snippets(story_id)
 
         # Build story text for context
         story_text = "\n".join(
@@ -145,11 +248,13 @@ Remember: Output ONLY the JSON object with snippets array. Each snippet max 300 
 
         # Try models in cascade
         model_cascade = get_model_cascade()
+        print(f"[Snippets] 🔄 Model cascade: {model_cascade}")
+        print(f"[Snippets] 🔄 Story ID: {story_id}, User ID: {user_id}")
 
         for attempt_idx, model_name in enumerate(model_cascade):
             try:
                 print(
-                    f"[Snippets] Attempt {attempt_idx + 1}/{len(model_cascade)}: {model_name}"
+                    f"[Snippets] 🔄 Attempt {attempt_idx + 1}/{len(model_cascade)}: Trying '{model_name}'..."
                 )
 
                 llm = ChatGoogleGenerativeAI(
@@ -158,27 +263,43 @@ Remember: Output ONLY the JSON object with snippets array. Each snippet max 300 
                     temperature=0.7,
                     convert_system_message_to_human=True,
                 )
+                print(f"[Snippets] 🔄 LLM initialized for {model_name}")
 
                 # Call Gemini
+                print(f"[Snippets] 🔄 Sending request to {model_name}...")
                 response = llm.invoke(
                     [
                         SystemMessage(content=system_instruction),
                         HumanMessage(content=user_prompt),
                     ]
                 )
+                print(f"[Snippets] 🔄 Response received from {model_name}")
 
-                print(f"[Snippets] ✅ Success with {model_name}")
+                print(f"[Snippets] ✅ SUCCESS with {model_name}!")
 
                 # Parse JSON response - handle both string and list content
                 content = response.content
                 if isinstance(content, list):
                     # Join list items if response is a list
                     content = " ".join(str(item) for item in content)
-                return self._parse_response(str(content), model_name)
+
+                result = self._parse_response(str(content), model_name)
+
+                # If parsing succeeded, save snippets to database
+                if result["success"] and result["snippets"]:
+                    saved_snippets = self._save_snippets(
+                        story_id=story_id, user_id=user_id, snippets=result["snippets"]
+                    )
+                    # Update result with saved snippet data (includes IDs)
+                    result["snippets"] = [s.to_dict() for s in saved_snippets]
+
+                return result
 
             except Exception as e:
                 error_message = str(e)
-                print(f"[Snippets] ❌ {model_name} failed: {error_message}")
+                print(f"[Snippets] ❌ {model_name} FAILED")
+                print(f"[Snippets] ❌ Error type: {type(e).__name__}")
+                print(f"[Snippets] ❌ Error message: {error_message[:200]}")
 
                 # Check if rate limit
                 is_rate_limit = any(
@@ -191,12 +312,16 @@ Remember: Output ONLY the JSON object with snippets array. Each snippet max 300 
                     ]
                 )
 
+                if is_rate_limit:
+                    print(f"[Snippets] 🔄 Rate limit detected, trying next model...")
+
                 if is_rate_limit and attempt_idx < len(model_cascade) - 1:
-                    print(f"[Snippets] 🔄 Rate limit, trying next model...")
+                    print(f"[Snippets] 🔄 Moving to next model...")
                     continue
 
                 # Last model or non-rate-limit error
                 if attempt_idx == len(model_cascade) - 1:
+                    print(f"[Snippets] ❌ ALL MODELS EXHAUSTED")
                     return {
                         "success": False,
                         "snippets": [],
