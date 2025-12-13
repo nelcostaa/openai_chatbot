@@ -1,21 +1,32 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, FolderOpen, Feather } from "lucide-react";
+import { ArrowLeft, FolderOpen, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ChatArea } from "@/components/chat/ChatArea";
-import { ChapterSummaryDrawer } from "@/components/chat/ChapterSummaryDrawer";
-import { useProject, useCreateProject } from "@/hooks/useProjects";
+import { SnippetsOverlay } from "@/components/projects/SnippetsOverlay";
+import { useProject, useCreateProject, useSnippets, useProjectSnippets, useUpdateSnippet } from "@/hooks/useProjects";
+import type { UpdateSnippetDto } from "@/hooks/useProjects";
 import { useSendMessage } from "@/hooks/useChat";
 
 export default function ProjectInterview() {
     const navigate = useNavigate();
     const { id } = useParams<{ id: string }>();
-    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+    const [isOverlayOpen, setIsOverlayOpen] = useState(false);
     const [isCreatingProject, setIsCreatingProject] = useState(false);
 
-    const { data: project, isLoading } = useProject(id ? parseInt(id) : undefined);
-    const sendMessage = useSendMessage(id ? parseInt(id) : undefined);
+    const projectId = id && id !== "new" ? parseInt(id) : undefined;
+
+    const { data: project, isLoading } = useProject(projectId);
+    const sendMessage = useSendMessage(projectId);
     const createProject = useCreateProject();
+
+    // Snippets hooks
+    const {
+        data: snippetsData,
+        isLoading: isLoadingSnippets
+    } = useSnippets(projectId);
+    const generateSnippets = useProjectSnippets();
+    const updateSnippet = useUpdateSnippet();
 
     // Auto-create project when id === "new"
     useEffect(() => {
@@ -32,6 +43,18 @@ export default function ProjectInterview() {
             });
         }
     }, [id, isCreatingProject, createProject, navigate]);
+
+    const handleGenerateSnippets = () => {
+        if (projectId) {
+            generateSnippets.mutate(projectId);
+        }
+    };
+
+    const handleUpdateSnippet = (snippetId: number, data: UpdateSnippetDto) => {
+        if (projectId) {
+            updateSnippet.mutate({ snippetId, projectId, data });
+        }
+    };
 
     if (isLoading || (id === "new" && (isCreatingProject || createProject.isPending))) {
         return (
@@ -51,7 +74,7 @@ export default function ProjectInterview() {
         );
     }
 
-    const mockSnippets: any[] = [];
+    const snippets = snippetsData?.snippets || [];
 
     return (
         <div className="flex flex-col h-screen w-full overflow-hidden bg-background">
@@ -69,11 +92,16 @@ export default function ProjectInterview() {
                 <div className="flex items-center gap-3 ml-auto">
                     <Button
                         variant="outline"
-                        onClick={() => setIsDrawerOpen(true)}
+                        onClick={() => setIsOverlayOpen(true)}
                         className="h-11 px-4 text-base"
                     >
-                        <Feather className="w-5 h-5 mr-2" />
+                        <Sparkles className="w-5 h-5 mr-2" />
                         View Project
+                        {snippets.length > 0 && (
+                            <span className="ml-2 bg-primary/10 text-primary text-xs px-2 py-0.5 rounded-full">
+                                {snippets.length}
+                            </span>
+                        )}
                     </Button>
                     <div className="flex items-center gap-2">
                         <FolderOpen className="w-5 h-5 text-primary" />
@@ -86,14 +114,25 @@ export default function ProjectInterview() {
 
             {/* Chat Area */}
             <div className="flex-1 overflow-hidden">
-                <ChatArea sendMessage={sendMessage} projectId={id ? parseInt(id) : undefined} />
+                <ChatArea
+                    sendMessage={sendMessage}
+                    projectId={projectId}
+                    initialPhase={project?.current_phase}
+                    initialAgeRange={project?.age_range}
+                />
             </div>
 
-            {/* Chapter Summary Drawer */}
-            <ChapterSummaryDrawer
-                isOpen={isDrawerOpen}
-                onClose={() => setIsDrawerOpen(false)}
-                snippets={mockSnippets}
+            {/* Snippets Overlay */}
+            <SnippetsOverlay
+                isOpen={isOverlayOpen}
+                onClose={() => setIsOverlayOpen(false)}
+                snippets={snippets}
+                isLoading={isLoadingSnippets}
+                isGenerating={generateSnippets.isPending}
+                onGenerate={handleGenerateSnippets}
+                onUpdateSnippet={handleUpdateSnippet}
+                isUpdatingSnippet={updateSnippet.isPending}
+                projectTitle={project?.title}
             />
         </div>
     );
