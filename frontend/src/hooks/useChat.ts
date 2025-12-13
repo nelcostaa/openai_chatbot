@@ -13,11 +13,31 @@ export interface Message {
 
 interface SendMessageDto {
     message: string;
+    advance_phase?: boolean;
 }
 
-interface SendMessageResponse {
-    response: string;
+export interface SendMessageResponse {
+    id: number;
+    role: string;
+    content: string;
+    phase: string;
+    phase_order: string[];
+    phase_index: number;
+    age_range: string | null;
+    phase_description: string;
 }
+
+// Phase display info for UI
+export const PHASE_DISPLAY_INFO: Record<string, { label: string; ageRange?: string }> = {
+    GREETING: { label: "Welcome" },
+    FAMILY_HISTORY: { label: "Family History" },
+    CHILDHOOD: { label: "Childhood", ageRange: "Ages 0-12" },
+    ADOLESCENCE: { label: "Adolescence", ageRange: "Ages 13-18" },
+    EARLY_ADULTHOOD: { label: "Early Adulthood", ageRange: "Ages 19-35" },
+    MIDLIFE: { label: "Midlife", ageRange: "Ages 36-60" },
+    PRESENT: { label: "Present Day" },
+    SYNTHESIS: { label: "Your Story" },
+};
 
 // Fetch messages for a project
 export const useProjectMessages = (projectId: number | undefined) => {
@@ -40,7 +60,7 @@ export const useProjectMessages = (projectId: number | undefined) => {
 // Send message to project interview endpoint
 export const useSendMessage = (projectId: number | undefined) => {
     return useMutation({
-        mutationFn: async (data: SendMessageDto) => {
+        mutationFn: async (data: SendMessageDto): Promise<SendMessageResponse> => {
             if (!projectId) {
                 throw new Error('Project ID is required');
             }
