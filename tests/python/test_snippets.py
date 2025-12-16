@@ -1350,7 +1350,9 @@ class TestSnippetServiceLockAndArchive:
         assert result is True
 
         # Verify it's gone
-        deleted = mock_db_session.query(Snippet).filter(Snippet.id == snippet_id).first()
+        deleted = (
+            mock_db_session.query(Snippet).filter(Snippet.id == snippet_id).first()
+        )
         assert deleted is None
 
     def test_to_dict_includes_lock_and_active(
@@ -1591,7 +1593,9 @@ class TestDeleteSnippetEndpoint:
         finally:
             app.dependency_overrides = {}
 
-    def test_delete_snippet_soft_delete(self, mock_db_session, sample_user, sample_story):
+    def test_delete_snippet_soft_delete(
+        self, mock_db_session, sample_user, sample_story
+    ):
         """DELETE should soft-delete snippet by default."""
         from backend.app.core.auth import get_current_active_user
         from backend.app.db.session import get_db
@@ -1659,7 +1663,9 @@ class TestDeleteSnippetEndpoint:
             assert response.status_code == 200
 
             # Verify snippet is permanently deleted
-            deleted = mock_db_session.query(Snippet).filter(Snippet.id == snippet_id).first()
+            deleted = (
+                mock_db_session.query(Snippet).filter(Snippet.id == snippet_id).first()
+            )
             assert deleted is None
         finally:
             app.dependency_overrides = {}

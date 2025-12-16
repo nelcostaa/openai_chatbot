@@ -201,39 +201,39 @@ export function SnippetCard({ snippet, index, className, onEdit, onLock, onDelet
             </div>
 
             {/* Card number badge (optional) */}
-                {index !== undefined && (
-                    <div className="absolute top-3 left-3 w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                        <span className="text-sm font-bold text-white">
-                            {index + 1}
-                        </span>
-                    </div>
-                )}
-
-                {/* Phase badge */}
-                <div className="absolute top-3 right-3">
-                    <span className="px-2 py-1 text-xs font-medium bg-white/20 backdrop-blur-sm rounded-full text-white">
-                        {phaseName}
+            {index !== undefined && (
+                <div className="absolute top-3 left-3 w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                    <span className="text-sm font-bold text-white">
+                        {index + 1}
                     </span>
                 </div>
+            )}
 
-                {/* Content area */}
-                <div className="absolute inset-0 flex flex-col justify-end p-5">
-                    {/* Dark overlay for text readability */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
-
-                    {/* Text content */}
-                    <div className="relative z-10 space-y-2">
-                        <h3 className="text-lg font-bold text-white leading-tight">
-                            {snippet.title}
-                        </h3>
-                        <p className="text-sm text-white/90 leading-relaxed line-clamp-6">
-                            {snippet.content}
-                        </p>
-                    </div>
-                </div>
-
-                {/* Decorative corner accent */}
-                <div className="absolute -bottom-8 -right-8 w-24 h-24 rounded-full bg-white/10" />
+            {/* Phase badge */}
+            <div className="absolute top-3 right-3">
+                <span className="px-2 py-1 text-xs font-medium bg-white/20 backdrop-blur-sm rounded-full text-white">
+                    {phaseName}
+                </span>
             </div>
-            );
+
+            {/* Content area */}
+            <div className="absolute inset-0 flex flex-col justify-end p-5">
+                {/* Dark overlay for text readability */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+
+                {/* Text content */}
+                <div className="relative z-10 space-y-2">
+                    <h3 className="text-lg font-bold text-white leading-tight">
+                        {snippet.title}
+                    </h3>
+                    <p className="text-sm text-white/90 leading-relaxed line-clamp-6">
+                        {snippet.content}
+                    </p>
+                </div>
+            </div>
+
+            {/* Decorative corner accent */}
+            <div className="absolute -bottom-8 -right-8 w-24 h-24 rounded-full bg-white/10" />
+        </div>
+    );
 }
