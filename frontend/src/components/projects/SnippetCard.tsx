@@ -198,7 +198,9 @@ export function SnippetCard({ snippet, index, className, onEdit, onLock, onDelet
                         <Trash2 className="w-4 h-4" />
                     </button>
                 )}
-                {/* Card number badge (optional) */}
+            </div>
+
+            {/* Card number badge (optional) */}
                 {index !== undefined && (
                     <div className="absolute top-3 left-3 w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
                         <span className="text-sm font-bold text-white">

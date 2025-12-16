@@ -46,7 +46,7 @@ export default defineConfig({
     /* Run your local dev server before starting the tests */
     webServer: [
         {
-            command: 'cd /home/nelso/Documents/openai_chatbot && export PYTHONPATH=/home/nelso/Documents/openai_chatbot:$PYTHONPATH && conda run -n chatbot python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 8000',
+            command: 'cd /home/nelson/Documents/openai_chatbot && export PYTHONPATH=/home/nelson/Documents/openai_chatbot:$PYTHONPATH && python3 -m uvicorn backend.app.main:app --host 0.0.0.0 --port 8000',
             port: 8000,
             timeout: 120 * 1000,
             reuseExistingServer: !process.env.CI,

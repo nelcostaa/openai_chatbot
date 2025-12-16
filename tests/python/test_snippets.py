@@ -3,6 +3,7 @@ Unit tests for backend/app/services/snippets.py and backend/app/api/endpoints/sn
 
 Tests the snippet generation service and API endpoint.
 Includes TDD tests for persistent snippets feature.
+Includes tests for lock, soft-delete, archive, and restore functionality.
 """
 
 import json
@@ -327,7 +328,7 @@ class TestSnippetsEndpoint:
     def test_generate_snippets_unauthorized(self):
         """Should reject request without authentication."""
         response = client.post("/api/snippets/1")
-        assert response.status_code == 403
+        assert response.status_code == 401
 
     def test_generate_snippets_story_not_found(self, mock_db_session, sample_user):
         """Should return 404 for non-existent story."""
@@ -651,13 +652,15 @@ class TestSnippetServicePersistence:
         service = SnippetService(mock_db_session)
         service.delete_snippets(sample_story.id)
 
-        # Verify deletion
+        # Note: delete_snippets now soft-deletes by setting is_active=False
+        # Verify snippet is soft-deleted (still in DB but is_active=False)
         remaining = (
             mock_db_session.query(Snippet)
             .filter(Snippet.story_id == sample_story.id)
             .all()
         )
-        assert len(remaining) == 0
+        assert len(remaining) == 1  # Still exists
+        assert remaining[0].is_active is False  # But is soft-deleted
 
 
 class TestSnippetsEndpointCaching:
@@ -773,21 +776,23 @@ class TestSnippetsEndpointCaching:
 
             assert result["success"] is True
 
-        # Verify old snippets are gone, new ones exist
-        all_snippets = (
+        # Verify old snippets are soft-deleted, new ones exist
+        # Note: delete_snippets now soft-deletes (is_active=False) instead of hard-deleting
+        active_snippets = (
             mock_db_session.query(Snippet)
             .filter(Snippet.story_id == sample_story.id)
+            .filter(Snippet.is_active == True)
             .all()
         )
-        assert len(all_snippets) == 2  # New snippets only
-        titles = [s.title for s in all_snippets]
+        assert len(active_snippets) == 2  # New snippets only (active)
+        titles = [s.title for s in active_snippets]
         assert "Old Snippet" not in titles
         assert "Village Soccer Days" in titles
 
     def test_get_snippets_unauthorized(self):
         """GET should reject unauthorized requests."""
         response = client.get("/api/snippets/1")
-        assert response.status_code == 403
+        assert response.status_code == 401
 
     def test_get_snippets_forbidden_other_user(
         self, mock_db_session, sample_user, sample_story
@@ -829,7 +834,7 @@ class TestUpdateSnippetEndpoint:
     def test_update_snippet_unauthorized(self):
         """PUT should reject unauthorized requests."""
         response = client.put("/api/snippets/1", json={"title": "New Title"})
-        assert response.status_code == 403
+        assert response.status_code == 401
 
     def test_update_snippet_not_found(self, mock_db_session, sample_user):
         """PUT should return 404 for non-existent snippet."""
@@ -1072,5 +1077,639 @@ class TestUpdateSnippetEndpoint:
             data = response.json()
             assert len(data["title"]) == 200
             assert data["title"] == "B" * 200
+        finally:
+            app.dependency_overrides = {}
+
+
+# =============================================================================
+# LOCK, ARCHIVE, RESTORE TESTS
+# =============================================================================
+
+
+class TestSnippetServiceLockAndArchive:
+    """Tests for snippet lock, soft-delete, and archive functionality in SnippetService."""
+
+    def test_snippet_default_values(self, mock_db_session, sample_user, sample_story):
+        """New snippets should have is_locked=False and is_active=True by default."""
+        snippet = Snippet(
+            user_id=sample_user.id,
+            story_id=sample_story.id,
+            title="Test Snippet",
+            content="Test content",
+            theme="growth",
+            phase="CHILDHOOD",
+        )
+        mock_db_session.add(snippet)
+        mock_db_session.commit()
+        mock_db_session.refresh(snippet)
+
+        assert snippet.is_locked is False
+        assert snippet.is_active is True
+
+    def test_toggle_lock(self, mock_db_session, sample_user, sample_story):
+        """toggle_lock should flip the is_locked state."""
+        snippet = Snippet(
+            user_id=sample_user.id,
+            story_id=sample_story.id,
+            title="Test Snippet",
+            content="Test content",
+            theme="growth",
+            phase="CHILDHOOD",
+            is_locked=False,
+        )
+        mock_db_session.add(snippet)
+        mock_db_session.commit()
+        mock_db_session.refresh(snippet)
+
+        service = SnippetService(mock_db_session)
+
+        # Toggle to locked
+        result = service.toggle_lock(snippet.id)
+        assert result is not None
+        assert result["is_locked"] is True
+
+        # Toggle back to unlocked
+        result = service.toggle_lock(snippet.id)
+        assert result["is_locked"] is False
+
+    def test_toggle_lock_not_found(self, mock_db_session):
+        """toggle_lock should return None for non-existent snippet."""
+        service = SnippetService(mock_db_session)
+        result = service.toggle_lock(99999)
+        assert result is None
+
+    def test_soft_delete_snippet(self, mock_db_session, sample_user, sample_story):
+        """soft_delete_snippet should set is_active to False."""
+        snippet = Snippet(
+            user_id=sample_user.id,
+            story_id=sample_story.id,
+            title="Test Snippet",
+            content="Test content",
+            theme="growth",
+            phase="CHILDHOOD",
+        )
+        mock_db_session.add(snippet)
+        mock_db_session.commit()
+        mock_db_session.refresh(snippet)
+
+        service = SnippetService(mock_db_session)
+        result = service.soft_delete_snippet(snippet.id)
+
+        assert result is not None
+        assert result["is_active"] is False
+
+    def test_restore_snippet(self, mock_db_session, sample_user, sample_story):
+        """restore_snippet should set is_active back to True."""
+        snippet = Snippet(
+            user_id=sample_user.id,
+            story_id=sample_story.id,
+            title="Test Snippet",
+            content="Test content",
+            theme="growth",
+            phase="CHILDHOOD",
+            is_active=False,  # Start as archived
+        )
+        mock_db_session.add(snippet)
+        mock_db_session.commit()
+        mock_db_session.refresh(snippet)
+
+        service = SnippetService(mock_db_session)
+        result = service.restore_snippet(snippet.id)
+
+        assert result is not None
+        assert result["is_active"] is True
+
+    def test_get_existing_snippets_excludes_archived(
+        self, mock_db_session, sample_user, sample_story
+    ):
+        """get_existing_snippets should only return active snippets by default."""
+        # Create active snippet
+        active_snippet = Snippet(
+            user_id=sample_user.id,
+            story_id=sample_story.id,
+            title="Active Snippet",
+            content="Active content",
+            theme="growth",
+            phase="CHILDHOOD",
+            is_active=True,
+        )
+        # Create archived snippet
+        archived_snippet = Snippet(
+            user_id=sample_user.id,
+            story_id=sample_story.id,
+            title="Archived Snippet",
+            content="Archived content",
+            theme="family",
+            phase="PRESENT",
+            is_active=False,
+        )
+        mock_db_session.add(active_snippet)
+        mock_db_session.add(archived_snippet)
+        mock_db_session.commit()
+
+        service = SnippetService(mock_db_session)
+        result = service.get_existing_snippets(sample_story.id)
+
+        assert result["success"] is True
+        assert result["count"] == 1
+        assert result["snippets"][0]["title"] == "Active Snippet"
+
+    def test_get_archived_snippets(self, mock_db_session, sample_user, sample_story):
+        """get_archived_snippets should only return archived (is_active=False) snippets."""
+        # Create active snippet
+        active_snippet = Snippet(
+            user_id=sample_user.id,
+            story_id=sample_story.id,
+            title="Active Snippet",
+            content="Active content",
+            theme="growth",
+            phase="CHILDHOOD",
+            is_active=True,
+        )
+        # Create archived snippet
+        archived_snippet = Snippet(
+            user_id=sample_user.id,
+            story_id=sample_story.id,
+            title="Archived Snippet",
+            content="Archived content",
+            theme="family",
+            phase="PRESENT",
+            is_active=False,
+        )
+        mock_db_session.add(active_snippet)
+        mock_db_session.add(archived_snippet)
+        mock_db_session.commit()
+
+        service = SnippetService(mock_db_session)
+        result = service.get_archived_snippets(sample_story.id)
+
+        assert result["success"] is True
+        assert result["count"] == 1
+        assert result["snippets"][0]["title"] == "Archived Snippet"
+
+    def test_delete_snippets_preserves_locked(
+        self, mock_db_session, sample_user, sample_story
+    ):
+        """delete_snippets should only soft-delete unlocked snippets."""
+        # Create locked snippet
+        locked_snippet = Snippet(
+            user_id=sample_user.id,
+            story_id=sample_story.id,
+            title="Locked Snippet",
+            content="Locked content",
+            theme="growth",
+            phase="CHILDHOOD",
+            is_locked=True,
+            is_active=True,
+        )
+        # Create unlocked snippet
+        unlocked_snippet = Snippet(
+            user_id=sample_user.id,
+            story_id=sample_story.id,
+            title="Unlocked Snippet",
+            content="Unlocked content",
+            theme="family",
+            phase="PRESENT",
+            is_locked=False,
+            is_active=True,
+        )
+        mock_db_session.add(locked_snippet)
+        mock_db_session.add(unlocked_snippet)
+        mock_db_session.commit()
+        mock_db_session.refresh(locked_snippet)
+        mock_db_session.refresh(unlocked_snippet)
+
+        service = SnippetService(mock_db_session)
+        deleted_count = service.delete_snippets(sample_story.id)
+
+        # Should only soft-delete the unlocked one
+        assert deleted_count == 1
+
+        # Refresh to get updated state
+        mock_db_session.refresh(locked_snippet)
+        mock_db_session.refresh(unlocked_snippet)
+
+        # Locked snippet should still be active
+        assert locked_snippet.is_active is True
+        # Unlocked snippet should be archived
+        assert unlocked_snippet.is_active is False
+
+    def test_get_locked_snippet_count(self, mock_db_session, sample_user, sample_story):
+        """get_locked_snippet_count should return correct count."""
+        # Create locked snippet
+        locked1 = Snippet(
+            user_id=sample_user.id,
+            story_id=sample_story.id,
+            title="Locked 1",
+            content="Content",
+            is_locked=True,
+            is_active=True,
+        )
+        locked2 = Snippet(
+            user_id=sample_user.id,
+            story_id=sample_story.id,
+            title="Locked 2",
+            content="Content",
+            is_locked=True,
+            is_active=True,
+        )
+        unlocked = Snippet(
+            user_id=sample_user.id,
+            story_id=sample_story.id,
+            title="Unlocked",
+            content="Content",
+            is_locked=False,
+            is_active=True,
+        )
+        mock_db_session.add_all([locked1, locked2, unlocked])
+        mock_db_session.commit()
+
+        service = SnippetService(mock_db_session)
+        count = service.get_locked_snippet_count(sample_story.id)
+
+        assert count == 2
+
+    def test_permanently_delete_snippet(
+        self, mock_db_session, sample_user, sample_story
+    ):
+        """permanently_delete_snippet should remove snippet from database."""
+        snippet = Snippet(
+            user_id=sample_user.id,
+            story_id=sample_story.id,
+            title="To Delete",
+            content="Content",
+        )
+        mock_db_session.add(snippet)
+        mock_db_session.commit()
+        mock_db_session.refresh(snippet)
+        snippet_id = snippet.id
+
+        service = SnippetService(mock_db_session)
+        result = service.permanently_delete_snippet(snippet_id)
+
+        assert result is True
+
+        # Verify it's gone
+        deleted = mock_db_session.query(Snippet).filter(Snippet.id == snippet_id).first()
+        assert deleted is None
+
+    def test_to_dict_includes_lock_and_active(
+        self, mock_db_session, sample_user, sample_story
+    ):
+        """Snippet.to_dict() should include is_locked and is_active fields."""
+        snippet = Snippet(
+            user_id=sample_user.id,
+            story_id=sample_story.id,
+            title="Test",
+            content="Content",
+            is_locked=True,
+            is_active=False,
+        )
+        mock_db_session.add(snippet)
+        mock_db_session.commit()
+        mock_db_session.refresh(snippet)
+
+        data = snippet.to_dict()
+
+        assert "is_locked" in data
+        assert "is_active" in data
+        assert data["is_locked"] is True
+        assert data["is_active"] is False
+
+
+class TestLockSnippetEndpoint:
+    """Tests for PATCH /api/snippets/{snippet_id}/lock endpoint."""
+
+    def test_lock_snippet_unauthorized(self):
+        """PATCH /lock should reject unauthorized requests."""
+        response = client.patch("/api/snippets/1/lock")
+        assert response.status_code == 401
+
+    def test_lock_snippet_not_found(self, mock_db_session, sample_user):
+        """PATCH /lock should return 404 for non-existent snippet."""
+        from backend.app.core.auth import get_current_active_user
+        from backend.app.db.session import get_db
+
+        def override_get_db():
+            yield mock_db_session
+
+        def override_get_current_user():
+            return sample_user
+
+        app.dependency_overrides[get_db] = override_get_db
+        app.dependency_overrides[get_current_active_user] = override_get_current_user
+
+        try:
+            response = client.patch("/api/snippets/99999/lock")
+            assert response.status_code == 404
+        finally:
+            app.dependency_overrides = {}
+
+    def test_lock_snippet_success(self, mock_db_session, sample_user, sample_story):
+        """PATCH /lock should toggle snippet lock status."""
+        from backend.app.core.auth import get_current_active_user
+        from backend.app.db.session import get_db
+
+        snippet = Snippet(
+            user_id=sample_user.id,
+            story_id=sample_story.id,
+            title="Test Snippet",
+            content="Content",
+            is_locked=False,
+        )
+        mock_db_session.add(snippet)
+        mock_db_session.commit()
+        mock_db_session.refresh(snippet)
+
+        def override_get_db():
+            yield mock_db_session
+
+        def override_get_current_user():
+            return sample_user
+
+        app.dependency_overrides[get_db] = override_get_db
+        app.dependency_overrides[get_current_active_user] = override_get_current_user
+
+        try:
+            # Lock the snippet
+            response = client.patch(f"/api/snippets/{snippet.id}/lock")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["is_locked"] is True
+
+            # Unlock the snippet
+            response = client.patch(f"/api/snippets/{snippet.id}/lock")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["is_locked"] is False
+        finally:
+            app.dependency_overrides = {}
+
+
+class TestArchivedSnippetsEndpoint:
+    """Tests for GET /api/snippets/{story_id}/archived endpoint."""
+
+    def test_archived_snippets_unauthorized(self):
+        """GET /archived should reject unauthorized requests."""
+        response = client.get("/api/snippets/1/archived")
+        assert response.status_code == 401
+
+    def test_archived_snippets_success(
+        self, mock_db_session, sample_user, sample_story
+    ):
+        """GET /archived should return archived snippets."""
+        from backend.app.core.auth import get_current_active_user
+        from backend.app.db.session import get_db
+
+        # Create archived snippet
+        archived = Snippet(
+            user_id=sample_user.id,
+            story_id=sample_story.id,
+            title="Archived",
+            content="Content",
+            is_active=False,
+        )
+        # Create active snippet (should not be returned)
+        active = Snippet(
+            user_id=sample_user.id,
+            story_id=sample_story.id,
+            title="Active",
+            content="Content",
+            is_active=True,
+        )
+        mock_db_session.add(archived)
+        mock_db_session.add(active)
+        mock_db_session.commit()
+
+        def override_get_db():
+            yield mock_db_session
+
+        def override_get_current_user():
+            return sample_user
+
+        app.dependency_overrides[get_db] = override_get_db
+        app.dependency_overrides[get_current_active_user] = override_get_current_user
+
+        try:
+            response = client.get(f"/api/snippets/{sample_story.id}/archived")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["success"] is True
+            assert data["count"] == 1
+            assert data["snippets"][0]["title"] == "Archived"
+        finally:
+            app.dependency_overrides = {}
+
+
+class TestRestoreSnippetEndpoint:
+    """Tests for POST /api/snippets/{snippet_id}/restore endpoint."""
+
+    def test_restore_snippet_unauthorized(self):
+        """POST /restore should reject unauthorized requests."""
+        response = client.post("/api/snippets/1/restore")
+        assert response.status_code == 401
+
+    def test_restore_snippet_not_found(self, mock_db_session, sample_user):
+        """POST /restore should return 404 for non-existent snippet."""
+        from backend.app.core.auth import get_current_active_user
+        from backend.app.db.session import get_db
+
+        def override_get_db():
+            yield mock_db_session
+
+        def override_get_current_user():
+            return sample_user
+
+        app.dependency_overrides[get_db] = override_get_db
+        app.dependency_overrides[get_current_active_user] = override_get_current_user
+
+        try:
+            response = client.post("/api/snippets/99999/restore")
+            assert response.status_code == 404
+        finally:
+            app.dependency_overrides = {}
+
+    def test_restore_snippet_success(self, mock_db_session, sample_user, sample_story):
+        """POST /restore should restore archived snippet."""
+        from backend.app.core.auth import get_current_active_user
+        from backend.app.db.session import get_db
+
+        snippet = Snippet(
+            user_id=sample_user.id,
+            story_id=sample_story.id,
+            title="Archived Snippet",
+            content="Content",
+            is_active=False,  # Archived
+        )
+        mock_db_session.add(snippet)
+        mock_db_session.commit()
+        mock_db_session.refresh(snippet)
+
+        def override_get_db():
+            yield mock_db_session
+
+        def override_get_current_user():
+            return sample_user
+
+        app.dependency_overrides[get_db] = override_get_db
+        app.dependency_overrides[get_current_active_user] = override_get_current_user
+
+        try:
+            response = client.post(f"/api/snippets/{snippet.id}/restore")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["is_active"] is True
+        finally:
+            app.dependency_overrides = {}
+
+
+class TestDeleteSnippetEndpoint:
+    """Tests for DELETE /api/snippets/{snippet_id} endpoint."""
+
+    def test_delete_snippet_unauthorized(self):
+        """DELETE should reject unauthorized requests."""
+        response = client.delete("/api/snippets/1")
+        assert response.status_code == 401
+
+    def test_delete_snippet_not_found(self, mock_db_session, sample_user):
+        """DELETE should return 404 for non-existent snippet."""
+        from backend.app.core.auth import get_current_active_user
+        from backend.app.db.session import get_db
+
+        def override_get_db():
+            yield mock_db_session
+
+        def override_get_current_user():
+            return sample_user
+
+        app.dependency_overrides[get_db] = override_get_db
+        app.dependency_overrides[get_current_active_user] = override_get_current_user
+
+        try:
+            response = client.delete("/api/snippets/99999")
+            assert response.status_code == 404
+        finally:
+            app.dependency_overrides = {}
+
+    def test_delete_snippet_soft_delete(self, mock_db_session, sample_user, sample_story):
+        """DELETE should soft-delete snippet by default."""
+        from backend.app.core.auth import get_current_active_user
+        from backend.app.db.session import get_db
+
+        snippet = Snippet(
+            user_id=sample_user.id,
+            story_id=sample_story.id,
+            title="To Delete",
+            content="Content",
+            is_active=True,
+        )
+        mock_db_session.add(snippet)
+        mock_db_session.commit()
+        mock_db_session.refresh(snippet)
+
+        def override_get_db():
+            yield mock_db_session
+
+        def override_get_current_user():
+            return sample_user
+
+        app.dependency_overrides[get_db] = override_get_db
+        app.dependency_overrides[get_current_active_user] = override_get_current_user
+
+        try:
+            response = client.delete(f"/api/snippets/{snippet.id}")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["is_active"] is False
+
+            # Verify snippet still exists in DB (soft-deleted)
+            mock_db_session.refresh(snippet)
+            assert snippet.is_active is False
+        finally:
+            app.dependency_overrides = {}
+
+    def test_delete_snippet_permanent(self, mock_db_session, sample_user, sample_story):
+        """DELETE with ?permanent=true should permanently delete snippet."""
+        from backend.app.core.auth import get_current_active_user
+        from backend.app.db.session import get_db
+
+        snippet = Snippet(
+            user_id=sample_user.id,
+            story_id=sample_story.id,
+            title="To Delete Permanently",
+            content="Content",
+            is_active=True,
+        )
+        mock_db_session.add(snippet)
+        mock_db_session.commit()
+        mock_db_session.refresh(snippet)
+        snippet_id = snippet.id
+
+        def override_get_db():
+            yield mock_db_session
+
+        def override_get_current_user():
+            return sample_user
+
+        app.dependency_overrides[get_db] = override_get_db
+        app.dependency_overrides[get_current_active_user] = override_get_current_user
+
+        try:
+            response = client.delete(f"/api/snippets/{snippet_id}?permanent=true")
+            assert response.status_code == 200
+
+            # Verify snippet is permanently deleted
+            deleted = mock_db_session.query(Snippet).filter(Snippet.id == snippet_id).first()
+            assert deleted is None
+        finally:
+            app.dependency_overrides = {}
+
+
+class TestGetSnippetsWithLockedCount:
+    """Tests for GET /api/snippets/{story_id} returning locked_count."""
+
+    def test_get_snippets_includes_locked_count(
+        self, mock_db_session, sample_user, sample_story
+    ):
+        """GET should include locked_count in response."""
+        from backend.app.core.auth import get_current_active_user
+        from backend.app.db.session import get_db
+
+        # Create snippets
+        locked = Snippet(
+            user_id=sample_user.id,
+            story_id=sample_story.id,
+            title="Locked",
+            content="Content",
+            is_locked=True,
+            is_active=True,
+        )
+        unlocked = Snippet(
+            user_id=sample_user.id,
+            story_id=sample_story.id,
+            title="Unlocked",
+            content="Content",
+            is_locked=False,
+            is_active=True,
+        )
+        mock_db_session.add(locked)
+        mock_db_session.add(unlocked)
+        mock_db_session.commit()
+
+        def override_get_db():
+            yield mock_db_session
+
+        def override_get_current_user():
+            return sample_user
+
+        app.dependency_overrides[get_db] = override_get_db
+        app.dependency_overrides[get_current_active_user] = override_get_current_user
+
+        try:
+            response = client.get(f"/api/snippets/{sample_story.id}")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["count"] == 2
+            assert data["locked_count"] == 1
         finally:
             app.dependency_overrides = {}
