@@ -255,6 +255,31 @@ class SnippetService:
             .count()
         )
 
+    def get_locked_snippets(self, story_id: int) -> List[Dict]:
+        """
+        Get all locked, active snippets for a story.
+
+        Used to provide context during regeneration so the AI knows
+        what topics/content to avoid duplicating.
+
+        Args:
+            story_id: ID of the story
+
+        Returns:
+            List of locked snippet dicts with title, content, theme, phase
+        """
+        snippets = (
+            self.db.query(Snippet)
+            .filter(
+                Snippet.story_id == story_id,
+                Snippet.is_locked == True,  # noqa: E712
+                Snippet.is_active == True,  # noqa: E712
+            )
+            .order_by(Snippet.created_at.asc())
+            .all()
+        )
+        return [s.to_dict() for s in snippets]
+
     def _save_snippets(
         self, story_id: int, user_id: int, snippets: List[Dict]
     ) -> List[Snippet]:
@@ -335,7 +360,11 @@ class SnippetService:
                 "error": "No messages found for this story",
             }
 
-        # Delete existing snippets before regeneration
+        # Get locked snippets BEFORE deleting - these topics should be avoided in regeneration
+        locked_snippets = self.get_locked_snippets(story_id)
+        locked_count = len(locked_snippets)
+
+        # Delete existing unlocked snippets before regeneration (locked ones are preserved)
         self.delete_snippets(story_id)
 
         # Build story text for context
@@ -343,22 +372,38 @@ class SnippetService:
             [f"{msg['role'].upper()}: {msg['content']}" for msg in messages]
         )
 
+        # Build locked snippets context if any exist
+        locked_context = ""
+        if locked_snippets:
+            locked_topics = "\n".join(
+                [f"- {s['title']}: {s['content'][:100]}..." if len(s['content']) > 100 else f"- {s['title']}: {s['content']}"
+                 for s in locked_snippets]
+            )
+            locked_context = f"""
+
+IMPORTANT - EXISTING LOCKED CARDS (DO NOT DUPLICATE):
+The following {locked_count} card(s) already exist and are LOCKED. You must NOT create new snippets about the same topics, events, or moments. Generate NEW content about DIFFERENT parts of the story:
+
+{locked_topics}
+
+Generate snippets about OTHER moments from the story that are NOT covered by these locked cards."""
+
         # System instruction for structured JSON output
-        system_instruction = """You are a story curator creating content for printable game cards.
+        system_instruction = f"""You are a story curator creating content for printable game cards.
 
 Your task: Analyze the life story conversation and extract the most meaningful, emotionally resonant moments.
 
 OUTPUT FORMAT: You MUST respond with ONLY valid JSON, no other text. Use this exact structure:
-{
+{{
   "snippets": [
-    {
+    {{
       "title": "2-5 word catchy title",
       "content": "The snippet text, max 300 characters. Written in third person, narrative style.",
       "phase": "CHILDHOOD|ADOLESCENCE|EARLY_ADULTHOOD|MIDLIFE|PRESENT|FAMILY_HISTORY",
       "theme": "family|growth|challenge|adventure|love|legacy|identity|friendship"
-    }
+    }}
   ]
-}
+}}
 
 RULES:
 1. Generate 3-8 snippets based on story depth (fewer for short stories, more for rich ones)
@@ -368,7 +413,7 @@ RULES:
 5. Each snippet should stand alone as a meaningful story beat
 6. Vary the themes - don't repeat the same theme consecutively
 7. If the story is very short or lacks content, generate just 2-3 snippets
-8. ONLY output the JSON object, nothing else"""
+8. ONLY output the JSON object, nothing else{locked_context}"""
 
         # User prompt with story content
         user_prompt = f"""Analyze this life story conversation and generate snippets for game cards:
