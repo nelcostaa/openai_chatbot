@@ -1,66 +1,125 @@
 # Life Story Game – AI Interviewer
 
-An AI-powered interviewer that transforms personal life stories into meaningful board game narratives. Built with React, Vite, Tailwind CSS (frontend) and Python serverless functions + Google Gemini (backend).
+An AI-powered interviewer that transforms personal life stories into meaningful board game narratives. Built with React, Vite, Tailwind CSS (frontend) and FastAPI + LangGraph + Google Gemini (backend).
 
 The AI conducts a compassionate chronological interview adapted to the user's age, exploring life phases from family history through childhood, adolescence, adulthood, and present day, then synthesizes a structured narrative with title, chapters, and key moments.
 
 ## 🚀 Tech Stack
 
-- **Frontend**: React 19, Vite 7, Tailwind CSS 4
-- **Backend**: Python 3.9+ serverless functions (Vercel)
+- **Frontend**: React 19, Vite 7, Tailwind CSS 4, TanStack Query, Zustand
+- **Backend**: FastAPI, Python 3.13, LangGraph Agent
 - **AI Model**: Google Gemini (fallback cascade: 2.5-flash → 2.0-flash → lite variants)
-- **Architecture**: Stateless REST API, client-managed conversation state
-- **Testing**: Pytest (19 tests), Vitest + React Testing Library (8 tests)
-- **Deployment**: Vercel (automatic from git push)
+- **Database**: PostgreSQL with SQLAlchemy ORM, Alembic migrations
+- **Architecture**: Clean Architecture (Domain → Application → Infrastructure → Interface)
+- **Testing**: Pytest (100+ tests), Playwright E2E
+- **Deployment**: Render (backend), Vercel (frontend)
 
 ## 📋 Features
 
 - 🎭 **Age-Aware Interview**: Phases adapt based on user's age range (under 18, 18-30, 31-45, 46-65, 65+)
 - 📖 **Chronological Journey**: GREETING → AGE_SELECTION → FAMILY_HISTORY → CHILDHOOD → ADOLESCENCE → EARLY_ADULTHOOD → MIDLIFE → PRESENT → SYNTHESIS
 - 🏷️ **Theme Tracking**: Select story themes (family, career, love, etc.) and track which have been addressed
-- ✨ **AI Fallback Cascade**: Automatic retry across 6 Gemini models on rate limits
-- 🔒 **Stateless Architecture**: No server-side sessions, scales horizontally
-- 💬 **Context-Aware**: Client sends full conversation history each request
+- ✨ **AI Fallback Cascade**: Automatic retry across Gemini models on rate limits
+- 🔐 **Authentication**: JWT-based auth with secure password hashing
+- 💾 **Story Persistence**: Save and continue interviews across sessions
+- 📝 **Snippets**: Save important moments from conversations
+- 💬 **Context-Aware**: Full conversation history with AI context management
 - 🎨 **Modern UI**: Dark mode chat interface with phase timeline and theme tags
-- ⚡ **Fast**: Serverless functions with 30s timeout, optimized fallback
+- ⚡ **Fast**: Async FastAPI with connection pooling
 - 🛡️ **Production-Ready**: Input validation, error handling, comprehensive tests
 
 ## 📁 Project Structure
 
 ```
 /
-├── api/                          # Vercel serverless functions (Python)
-│   ├── chat.py                   # POST /api/chat - main AI endpoint
-│   ├── ai_fallback.py            # Gemini fallback cascade logic
-│   ├── health.py                 # GET /api/health - health check
-│   ├── model_status.py           # GET /api/model-status - model info
-│   ├── summary.py                # GET /api/summary - story summary
-│   └── routes/                   # Modular interview routes
-│       ├── base.py               # StoryRoute abstract base class
-│       └── chronological_steward.py  # Age-aware chronological route
+├── backend/                      # FastAPI backend (Clean Architecture)
+│   ├── app/                      # Interface Layer (FastAPI)
+│   │   ├── main.py               # FastAPI application entry point
+│   │   ├── api/endpoints/        # API route handlers (thin controllers)
+│   │   ├── core/                 # Auth, security, agent configuration
+│   │   ├── db/                   # Database session management
+│   │   ├── models/               # SQLAlchemy ORM models
+│   │   └── services/             # Interview service orchestration
+│   │
+│   ├── domain/                   # Domain Layer (Business Logic)
+│   │   ├── entities/             # Domain entities (User, Story, Message, Snippet)
+│   │   ├── exceptions.py         # Domain-specific exceptions
+│   │   └── services/             # Domain services (PhaseService)
+│   │
+│   ├── application/              # Application Layer (Use Cases)
+│   │   ├── interfaces/           # Repository & service abstractions
+│   │   └── use_cases/            # Business use cases (auth, interview, story)
+│   │
+│   └── infrastructure/           # Infrastructure Layer (Implementations)
+│       ├── persistence/          # SQLAlchemy repository implementations
+│       ├── services/             # External service adapters (AI, Auth)
+│       └── container.py          # Dependency injection container
+│
 ├── frontend/                     # React + Vite frontend
 │   ├── src/
-│   │   ├── App.jsx               # Main chat UI (stateless)
-│   │   ├── App.css               # Tailwind styles
-│   │   └── __tests__/            # Vitest component tests
-│   ├── vite.config.js            # Build config
+│   │   ├── App.tsx               # Main application component
+│   │   ├── components/           # Reusable UI components
+│   │   ├── pages/                # Page components
+│   │   ├── hooks/                # Custom React hooks
+│   │   ├── stores/               # Zustand state management
+│   │   └── lib/                  # Utilities and API client
+│   ├── vite.config.ts            # Build config
 │   └── package.json              # Frontend dependencies
+│
+├── alembic/                      # Database migrations
+│   └── versions/                 # Migration scripts
+│
 ├── tests/
-│   └── python/                   # Backend unit tests (19 tests)
-│       ├── test_ai_fallback.py   # AI fallback logic tests
-│       └── test_age_aware.py     # Age-aware phase tests
-├── dev_server.py                 # Local development server
-├── vercel.json                   # Vercel deployment config
-├── requirements.txt              # Python deps for Vercel runtime
-└── .env.example                  # Environment variable template
+│   ├── python/                   # Backend unit tests (100+ tests)
+│   └── e2e/                      # Playwright E2E tests
+│
+├── docs/                         # Documentation
+│   ├── backend_structure.md      # Backend architecture guide
+│   ├── master_execution_plan.md  # Migration roadmap
+│   └── DATABASE_SCHEMA_GUIDELINE.md
+│
+├── scripts/                      # Utility scripts
+├── docker-compose.yml            # Local development with Docker
+├── Dockerfile                    # Container build
+├── render.yaml                   # Render deployment config
+└── requirements.txt              # Python dependencies
 ```
+
+## 🏗️ Clean Architecture
+
+The backend follows Clean Architecture principles with clear layer separation:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Interface Layer                          │
+│     (FastAPI routes, Pydantic schemas, HTTP handling)       │
+├─────────────────────────────────────────────────────────────┤
+│                   Application Layer                         │
+│         (Use Cases, DTOs, Interface definitions)            │
+├─────────────────────────────────────────────────────────────┤
+│                     Domain Layer                            │
+│      (Entities, Value Objects, Domain Services)             │
+├─────────────────────────────────────────────────────────────┤
+│                  Infrastructure Layer                       │
+│    (SQLAlchemy repos, LangGraph AI, JWT auth services)      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Dependency Rule**: Inner layers never depend on outer layers. Dependencies point inward.
+
+### Key Patterns
+
+- **A/C Hybrid DI**: Manual constructor injection + FastAPI's `Depends()` for flexibility
+- **Repository Pattern**: Abstract data access behind interfaces
+- **Use Case Pattern**: Business operations encapsulated in single-purpose classes
+- **Entity Mapping**: Domain entities ↔ ORM models via explicit mappers
 
 ## Prerequisites
 
 - **Node.js** 18+
-- **Python** 3.9+
-- **Vercel CLI** (optional): `npm install -g vercel`
-- **Google AI Studio** account: [Get API key](https://aistudio.google.com/app/apikey)
+- **Python** 3.11+
+- **PostgreSQL** 14+
+- **Docker** (optional, for local development)
 
 ## 🔧 Setup
 
@@ -73,153 +132,161 @@ cd openai_chatbot
 
 Create `.env` (NEVER commit):
 ```bash
-GEMINI_API_KEY="your_google_gemini_api_key_here"
+# AI Configuration
+GEMINI_API_KEY="your_google_gemini_api_key"
+
+# Database
+DATABASE_URL="postgresql://user:pass@localhost:5432/lifestory"
+
+# Auth
+SECRET_KEY="your-secret-key-min-32-chars"
+ALGORITHM="HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+# Environment
+ENVIRONMENT=development
 ```
 
 ### 2. Install Dependencies
+
+**Backend:**
+```bash
+python -m venv venv
+source venv/bin/activate  # or `venv\Scripts\activate` on Windows
+pip install -r requirements.txt
+```
 
 **Frontend:**
 ```bash
 cd frontend && npm install
 ```
 
-**Backend (for tests):**
+### 3. Database Setup
+
 ```bash
-conda create -y -n chatbot python=3.10
-conda activate chatbot
-pip install -r requirements.txt
+# With Docker
+docker-compose up -d db
+
+# Run migrations
+alembic upgrade head
 ```
 
 ## 🧪 Testing
 
-**Backend:** ✅ 19 tests
+**Backend:** ✅ 100+ tests
 ```bash
-conda activate chatbot
 pytest tests/python/ -v
 ```
 
-**Frontend:** ✅ 8 tests
+**Domain Tests:**
 ```bash
-cd frontend && npm test
+pytest tests/python/test_domain_entities.py -v
+```
+
+**E2E Tests:**
+```bash
+cd frontend && npx playwright test
 ```
 
 ## 🚀 Running Locally
 
-**Vercel Dev (Recommended):**
+**Backend:**
 ```bash
-vercel dev
-# Frontend + API at http://localhost:3000
+uvicorn backend.app.main:app --reload --port 8000
 ```
 
-**Dev Server (Alternative):**
+**Frontend:**
 ```bash
-python dev_server.py
-# API at http://localhost:5328
+cd frontend && npm run dev
+# Frontend at http://localhost:5173
+```
+
+**With Docker:**
+```bash
+docker-compose up
+# Backend at http://localhost:8000
+# Frontend at http://localhost:5173
 ```
 
 ## 📡 API Endpoints
 
-### `POST /api/chat`
+### Authentication
 
-Main chat endpoint for AI conversation.
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/register` | Register new user |
+| POST | `/api/auth/login` | Login, returns JWT |
+| GET | `/api/auth/me` | Get current user |
 
-**Request:**
-```json
-{
-  "messages": [{"role": "user", "content": "Hello"}],
-  "route": "1",
-  "phase": "GREETING",
-  "age_range": "31_45",
-  "advance_phase": false,
-  "selected_tags": ["family", "career", "adventure"],
-  "addressed_themes": ["family"]
-}
-```
+### Stories
 
-**Response:**
-```json
-{
-  "response": "AI generated response...",
-  "model": "gemini-2.5-flash",
-  "attempts": 1,
-  "phase": "GREETING",
-  "phase_order": ["GREETING", "AGE_SELECTION", "FAMILY_HISTORY", "..."],
-  "phase_index": 0,
-  "age_range": "31_45",
-  "newly_addressed_themes": ["career"]
-}
-```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/stories` | List user's stories |
+| POST | `/api/stories` | Create new story |
+| GET | `/api/stories/{id}` | Get story details |
+| DELETE | `/api/stories/{id}` | Delete story |
 
-### `GET /api/model-status`
-Returns fallback cascade info.
+### Interview
 
-### `GET /api/health`
-Health check.
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/stories/{id}/chat` | Send message to AI |
+| POST | `/api/stories/{id}/advance-phase` | Move to next phase |
 
-### `GET /api/summary`
-Generate story summary from conversation.
+### Snippets
 
-## 🚢 Vercel Deployment
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/stories/{id}/snippets` | List story snippets |
+| POST | `/api/stories/{id}/snippets` | Create snippet |
+| PATCH | `/api/snippets/{id}` | Update snippet |
+| DELETE | `/api/snippets/{id}` | Delete snippet |
 
-### 1. Connect Repository
-- Visit [vercel.com](https://vercel.com)
-- Import GitHub repository
+## 🚢 Deployment
 
-### 2. Configure Project
-- **Build Command:** `cd frontend && npm install && npm run build`
-- **Output Directory:** `frontend/dist`
-- **Root Directory:** `./` (leave empty)
+### Backend (Render)
 
-### 3. Environment Variables
-Add in Vercel dashboard:
-- `GEMINI_API_KEY`: Your Google AI Studio key
+1. Connect GitHub repository to Render
+2. Set environment variables in Render dashboard
+3. Deploy from `render.yaml` configuration
 
-### 4. Deploy
-```bash
-vercel --prod
-```
+### Frontend (Vercel)
 
-Auto-deploys on git push to `main`.
+1. Connect GitHub repository to Vercel
+2. Set `VITE_API_URL` environment variable
+3. Deploy (auto-deploys on push to `main`)
 
 ## 🔒 Security
 
-- ✅ API keys server-side only (Vercel env)
-- ✅ Input validation (50K char limit)
-- ✅ Theme injection protection (sanitized user input)
-- ✅ Never commit `.env`
-- ✅ CORS headers in serverless functions
-
-## 🐛 Troubleshooting
-
-| Issue | Solution |
-|-------|----------|
-| **401 Auth Error** | Verify `GEMINI_API_KEY` in Vercel env vars |
-| **429 Rate Limit** | Normal - fallback retries next model |
-| **Empty responses** | Check Vercel function logs |
-| **Build fails** | Delete `node_modules`, reinstall |
+- ✅ JWT authentication with secure token handling
+- ✅ Password hashing with bcrypt
+- ✅ API keys server-side only
+- ✅ Input validation on all endpoints
+- ✅ CORS configuration for production
+- ✅ SQL injection prevention via SQLAlchemy ORM
 
 ## 📦 Key Dependencies
 
-**Backend:** `google-generativeai`, `pytest`  
-**Frontend:** React 19, Vite 7, Vitest, Tailwind CSS 4
+**Backend:**
+- FastAPI, SQLAlchemy, Alembic
+- LangGraph, google-generativeai
+- python-jose, passlib, bcrypt
+- pytest, httpx
 
-## 🎨 Customization
-
-**Change Models:**
-```bash
-# In Vercel env vars
-GEMINI_MODELS=gemini-2.5-flash,gemini-1.5-pro
-```
-
-**Add New Interview Routes:** Create a new class in `api/routes/` extending `StoryRoute` base class
-
-**Modify Phases:** Edit `AGE_PHASE_MAPPING` in `api/routes/chronological_steward.py`
-
-**Adjust Timeout:** Edit `vercel.json` `maxDuration`
+**Frontend:**
+- React 19, TypeScript
+- TanStack Query, Zustand
+- Tailwind CSS, Radix UI
+- Vite, Playwright
 
 ## 🤝 Contributing
 
-Focus areas: new interview routes, UI/UX improvements, additional theme keywords, test coverage
+Focus areas:
+- Use case implementation
+- Test coverage expansion
+- UI/UX improvements
+- Documentation
 
 ## 📝 License
 
@@ -227,9 +294,10 @@ MIT License
 
 ## 🔗 Resources
 
+- [FastAPI Docs](https://fastapi.tiangolo.com/)
+- [LangGraph Docs](https://langchain-ai.github.io/langgraph/)
+- [Clean Architecture](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
 - [Google AI Studio](https://aistudio.google.com/)
-- [Vercel Docs](https://vercel.com/docs)
-- [Gemini API Docs](https://ai.google.dev/docs)
 
 ---
 
