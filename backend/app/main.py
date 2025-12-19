@@ -8,9 +8,10 @@ app = FastAPI(title="Life Story Game API")
 # Configure CORS for Frontend
 origins = [
     "http://localhost:5173",  # Local Vite (default)
-    "http://localhost:8080",  # Local Vite (Lovable frontend)
+    "http://localhost:8080",  # Local Vite (Docker)
     "http://localhost:3000",  # Alternative dev server
-    "https://your-vercel-app.vercel.app",  # Vercel Prod
+    "https://openai-chatbot-eight.vercel.app",  # Vercel Production
+    "https://recollectlife.vercel.app",  # Future custom domain
 ]
 
 app.add_middleware(
