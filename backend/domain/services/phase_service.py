@@ -9,7 +9,6 @@ from typing import Dict, List, Optional
 
 from backend.domain.entities.story import AgeRange, Phase
 
-
 # Phase configuration with prompts (domain knowledge)
 PHASE_PROMPTS: Dict[Phase, Dict[str, str]] = {
     Phase.GREETING: {
@@ -154,39 +153,39 @@ Keep responses to 2-3 sentences.""",
 class PhaseService:
     """
     Domain service for managing interview phases.
-    
+
     This service contains business logic for:
     - Phase transitions
     - Phase prompts
     - Age-based phase filtering
     """
-    
+
     @staticmethod
     def get_phases_for_age(age_range: Optional[AgeRange]) -> List[Phase]:
         """
         Get available phases based on user's age range.
-        
+
         Args:
             age_range: User's age range (None returns all phases)
-            
+
         Returns:
             List of phases available for this age range
         """
         from backend.domain.entities.story import AGE_PHASE_MAPPING
-        
+
         if age_range is None:
             return list(Phase)
-        
+
         return AGE_PHASE_MAPPING.get(age_range, list(Phase))
-    
+
     @staticmethod
     def get_phase_prompt(phase: Phase) -> str:
         """
         Get the AI prompt for a specific phase.
-        
+
         Args:
             phase: The interview phase
-            
+
         Returns:
             The prompt string for the AI
         """
@@ -194,15 +193,15 @@ class PhaseService:
         if config:
             return config.get("prompt", "")
         return PHASE_PROMPTS[Phase.GREETING]["prompt"]
-    
+
     @staticmethod
     def get_phase_description(phase: Phase) -> str:
         """
         Get human-readable description of a phase.
-        
+
         Args:
             phase: The interview phase
-            
+
         Returns:
             Description string
         """
@@ -210,15 +209,15 @@ class PhaseService:
         if config:
             return config.get("description", phase.value)
         return phase.value
-    
+
     @staticmethod
     def parse_age_selection(input_value: str) -> Optional[AgeRange]:
         """
         Parse user's age selection input to AgeRange.
-        
+
         Args:
             input_value: User input (1-5 or age range string)
-            
+
         Returns:
             AgeRange enum or None if invalid
         """
@@ -230,68 +229,72 @@ class PhaseService:
             "4": AgeRange.AGE_46_60,
             "5": AgeRange.AGE_61_PLUS,
         }
-        
+
         # Try numeric first
         if input_value in numeric_map:
             return numeric_map[input_value]
-        
+
         # Try direct enum value
         try:
             return AgeRange(input_value)
         except ValueError:
             return None
-    
+
     @staticmethod
-    def get_next_phase(current_phase: Phase, 
-                      available_phases: List[Phase]) -> Optional[Phase]:
+    def get_next_phase(
+        current_phase: Phase, available_phases: List[Phase]
+    ) -> Optional[Phase]:
         """
         Get the next phase in sequence.
-        
+
         Args:
             current_phase: Current interview phase
             available_phases: List of phases available for this story
-            
+
         Returns:
             Next phase or None if at end
         """
         if current_phase not in available_phases:
             return None
-        
+
         idx = available_phases.index(current_phase)
         if idx >= len(available_phases) - 1:
             return None
-        
+
         return available_phases[idx + 1]
-    
+
     @staticmethod
-    def can_transition(from_phase: Phase, to_phase: Phase,
-                      available_phases: List[Phase],
-                      age_range: Optional[AgeRange] = None) -> bool:
+    def can_transition(
+        from_phase: Phase,
+        to_phase: Phase,
+        available_phases: List[Phase],
+        age_range: Optional[AgeRange] = None,
+    ) -> bool:
         """
         Check if a phase transition is valid.
-        
+
         Args:
             from_phase: Current phase
             to_phase: Target phase
             available_phases: Phases available for this story
             age_range: User's age range (required to advance past AGE_SELECTION)
-            
+
         Returns:
             True if transition is valid
         """
         # Both phases must be in available phases
         if from_phase not in available_phases or to_phase not in available_phases:
             return False
-        
+
         from_idx = available_phases.index(from_phase)
         to_idx = available_phases.index(to_phase)
-        
+
         # Can't go backward
         if to_idx < from_idx:
             return False
-        
+
         # Must have age set to advance past AGE_SELECTION
         if to_idx > 1 and age_range is None:
             return False
-        
+
         return True

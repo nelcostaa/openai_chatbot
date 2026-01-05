@@ -13,7 +13,6 @@ from passlib.context import CryptContext
 
 from backend.application.interfaces.services import PasswordService, TokenService
 
-
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -25,11 +24,11 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 class BcryptPasswordService(PasswordService):
     """Password service using bcrypt hashing."""
-    
+
     def hash_password(self, password: str) -> str:
         """Hash a plain text password using bcrypt."""
         return pwd_context.hash(password)
-    
+
     def verify_password(self, plain: str, hashed: str) -> bool:
         """Verify a password against its bcrypt hash."""
         return pwd_context.verify(plain, hashed)
@@ -37,12 +36,14 @@ class BcryptPasswordService(PasswordService):
 
 class JWTTokenService(TokenService):
     """Token service using JWT."""
-    
+
     def __init__(self, secret_key: str = None, algorithm: str = None):
         self.secret_key = secret_key or SECRET_KEY
         self.algorithm = algorithm or ALGORITHM
-    
-    def create_token(self, user_id: int, expires_minutes: int = ACCESS_TOKEN_EXPIRE_MINUTES) -> str:
+
+    def create_token(
+        self, user_id: int, expires_minutes: int = ACCESS_TOKEN_EXPIRE_MINUTES
+    ) -> str:
         """Create a JWT token for a user."""
         expire = datetime.utcnow() + timedelta(minutes=expires_minutes)
         to_encode = {
@@ -50,11 +51,11 @@ class JWTTokenService(TokenService):
             "exp": expire,
         }
         return jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
-    
+
     def decode_token(self, token: str) -> Optional[int]:
         """
         Decode a JWT token and return user ID.
-        
+
         Returns:
             User ID if valid, None if invalid/expired
         """

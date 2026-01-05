@@ -22,21 +22,6 @@ from sqlalchemy.orm import Session
 # Database session
 from backend.app.db.session import get_db
 
-# Repository implementations
-from backend.infrastructure.persistence.repositories import (
-    SQLAlchemyMessageRepository,
-    SQLAlchemySnippetRepository,
-    SQLAlchemyStoryRepository,
-    SQLAlchemyUserRepository,
-)
-
-# Service implementations
-from backend.infrastructure.services.ai_service import LangGraphAIService
-from backend.infrastructure.services.auth_service import (
-    BcryptPasswordService,
-    JWTTokenService,
-)
-
 # Use cases
 from backend.application.use_cases.auth import (
     GetCurrentUserUseCase,
@@ -54,10 +39,25 @@ from backend.application.use_cases.story import (
     ListStoriesUseCase,
 )
 
+# Repository implementations
+from backend.infrastructure.persistence.repositories import (
+    SQLAlchemyMessageRepository,
+    SQLAlchemySnippetRepository,
+    SQLAlchemyStoryRepository,
+    SQLAlchemyUserRepository,
+)
+
+# Service implementations
+from backend.infrastructure.services.ai_service import LangGraphAIService
+from backend.infrastructure.services.auth_service import (
+    BcryptPasswordService,
+    JWTTokenService,
+)
 
 # ============================================================
 # Service Singletons (cached)
 # ============================================================
+
 
 @lru_cache()
 def get_password_service() -> BcryptPasswordService:
@@ -81,6 +81,7 @@ def get_ai_service() -> LangGraphAIService:
 # Repository Factories (per-request, need DB session)
 # ============================================================
 
+
 def get_user_repository(db: Session = Depends(get_db)) -> SQLAlchemyUserRepository:
     """Get user repository for current request."""
     return SQLAlchemyUserRepository(db)
@@ -91,12 +92,16 @@ def get_story_repository(db: Session = Depends(get_db)) -> SQLAlchemyStoryReposi
     return SQLAlchemyStoryRepository(db)
 
 
-def get_message_repository(db: Session = Depends(get_db)) -> SQLAlchemyMessageRepository:
+def get_message_repository(
+    db: Session = Depends(get_db),
+) -> SQLAlchemyMessageRepository:
     """Get message repository for current request."""
     return SQLAlchemyMessageRepository(db)
 
 
-def get_snippet_repository(db: Session = Depends(get_db)) -> SQLAlchemySnippetRepository:
+def get_snippet_repository(
+    db: Session = Depends(get_db),
+) -> SQLAlchemySnippetRepository:
     """Get snippet repository for current request."""
     return SQLAlchemySnippetRepository(db)
 
@@ -104,6 +109,7 @@ def get_snippet_repository(db: Session = Depends(get_db)) -> SQLAlchemySnippetRe
 # ============================================================
 # Use Case Factories (compose repositories + services)
 # ============================================================
+
 
 def get_register_user_use_case(
     user_repo: SQLAlchemyUserRepository = Depends(get_user_repository),
