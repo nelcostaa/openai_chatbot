@@ -1,5 +1,5 @@
 import { Loader2, RefreshCw, X } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
 
 import { SnippetCard } from "./SnippetCard";
 import {
@@ -10,7 +10,7 @@ import {
     SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { useStorySnippets, useStory } from "@/hooks/useStories";
+import { useStorySnippets, useStory, useReorderSnippets, Snippet } from "@/hooks/useStories";
 import { cn } from "@/lib/utils";
 
 interface SnippetPreviewProps {
@@ -39,6 +39,18 @@ export function SnippetPreview({ storyId, open, onOpenChange }: SnippetPreviewPr
         reset
     } = useStorySnippets();
 
+    const { mutate: reorderSnippets } = useReorderSnippets(storyId ?? undefined);
+
+    // Local state to manage snippets order for optimistic UI updates
+    const [localSnippets, setLocalSnippets] = useState<Snippet[]>([]);
+
+    // Sync local snippets with data from API
+    useEffect(() => {
+        if (snippetsData?.snippets) {
+            setLocalSnippets(snippetsData.snippets);
+        }
+    }, [snippetsData?.snippets]);
+
     // Generate snippets when modal opens with a valid story ID
     useEffect(() => {
         if (open && storyId && !snippetsData && !isPending) {
@@ -52,6 +64,7 @@ export function SnippetPreview({ storyId, open, onOpenChange }: SnippetPreviewPr
             // Small delay to allow close animation
             const timer = setTimeout(() => {
                 reset();
+                setLocalSnippets([]);
             }, 300);
             return () => clearTimeout(timer);
         }
@@ -60,9 +73,30 @@ export function SnippetPreview({ storyId, open, onOpenChange }: SnippetPreviewPr
     const handleRegenerate = () => {
         if (storyId) {
             reset();
+            setLocalSnippets([]);
             generateSnippets(storyId);
         }
     };
+
+    const handleMoveSnippet = useCallback((fromIndex: number, toIndex: number) => {
+        if (toIndex < 0 || toIndex >= localSnippets.length) return;
+
+        const newSnippets = [...localSnippets];
+        const [movedSnippet] = newSnippets.splice(fromIndex, 1);
+        newSnippets.splice(toIndex, 0, movedSnippet);
+
+        // Optimistic update
+        setLocalSnippets(newSnippets);
+
+        // Persist to backend
+        const snippetIds = newSnippets
+            .filter(s => s.id !== undefined)
+            .map(s => s.id as number);
+
+        if (snippetIds.length > 0) {
+            reorderSnippets(snippetIds);
+        }
+    }, [localSnippets, reorderSnippets]);
 
     const handleClose = () => {
         onOpenChange(false);
@@ -157,29 +191,34 @@ export function SnippetPreview({ storyId, open, onOpenChange }: SnippetPreviewPr
                         <div className="space-y-6">
                             {/* Stats bar */}
                             <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                                <span>{snippetsData.count} cards generated</span>
+                                <span>{localSnippets.length} cards generated</span>
                                 {snippetsData.model && (
                                     <>
                                         <span className="text-muted-foreground/50">•</span>
                                         <span>Model: {snippetsData.model}</span>
                                     </>
                                 )}
+                                <span className="text-muted-foreground/50">•</span>
+                                <span className="text-primary">Use arrows to reorder</span>
                             </div>
 
                             {/* Cards Grid */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {snippetsData.snippets.map((snippet, index) => (
+                                {localSnippets.map((snippet, index) => (
                                     <SnippetCard
-                                        key={`${snippet.title}-${index}`}
+                                        key={snippet.id ?? `${snippet.title}-${index}`}
                                         snippet={snippet}
                                         index={index}
+                                        totalCount={localSnippets.length}
+                                        onMoveUp={() => handleMoveSnippet(index, index - 1)}
+                                        onMoveDown={() => handleMoveSnippet(index, index + 1)}
                                     />
                                 ))}
                             </div>
 
                             {/* Footer hint */}
                             <p className="text-xs text-muted-foreground text-center pt-4 border-t">
-                                These cards are designed for printing. Each card is under 300 characters.
+                                These cards are designed for printing. Each card is under 300 characters. Drag to reorder.
                             </p>
                         </div>
                     )}

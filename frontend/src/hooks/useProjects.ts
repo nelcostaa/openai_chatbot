@@ -21,6 +21,7 @@ export interface Snippet {
     theme: string;
     is_locked?: boolean;
     is_active?: boolean;
+    display_order: number;
     created_at?: string;
 }
 
@@ -407,6 +408,30 @@ export const useDeleteSnippet = () => {
         onSettled: (data, error, variables) => {
             queryClient.invalidateQueries({ queryKey: ['snippets', variables.projectId] });
             queryClient.invalidateQueries({ queryKey: ['snippets', variables.projectId, 'archived'] });
+        },
+    });
+};
+
+/**
+ * Reorder snippets for a project.
+ * 
+ * Usage:
+ *   const { mutate: reorderSnippets } = useReorderSnippets(projectId);
+ *   reorderSnippets([3, 1, 2, 5, 4]); // Array of snippet IDs in new order
+ */
+export const useReorderSnippets = (projectId: number | undefined) => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (snippetIds: number[]): Promise<{ success: boolean; message: string }> => {
+            const response = await api.put(`/api/snippets/${projectId}/reorder`, {
+                snippet_ids: snippetIds,
+            });
+            return response.data;
+        },
+        onSuccess: () => {
+            // Invalidate cached snippets to refetch with new order
+            queryClient.invalidateQueries({ queryKey: ['snippets', projectId] });
         },
     });
 };

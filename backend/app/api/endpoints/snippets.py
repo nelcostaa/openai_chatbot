@@ -35,6 +35,7 @@ class SnippetItem(BaseModel):
     theme: Optional[str] = None
     is_locked: bool = False
     is_active: bool = True
+    display_order: int = 0
     created_at: Optional[datetime] = None
 
     class Config:
@@ -69,6 +70,19 @@ class SnippetUpdate(BaseModel):
     content: Optional[str] = None
     theme: Optional[str] = None
     phase: Optional[str] = None
+
+
+class ReorderRequest(BaseModel):
+    """Request body for reordering snippets."""
+
+    snippet_ids: List[int]  # Ordered list of snippet IDs
+
+
+class ReorderResponse(BaseModel):
+    """Response from reorder operation."""
+
+    success: bool
+    message: str
 
 
 # --- Endpoints ---
@@ -475,3 +489,65 @@ def delete_snippet(
         result = service.soft_delete_snippet(snippet_id)
         print(f"[API] ✅ Soft-deleted (archived) snippet {snippet_id}")
         return SnippetItem(**result)
+
+
+@router.put("/{story_id}/reorder", response_model=ReorderResponse)
+def reorder_snippets(
+    story_id: int,
+    reorder_data: ReorderRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Reorder snippets for a story.
+
+    Accepts an ordered list of snippet IDs and updates their display_order
+    to match the new order.
+
+    Args:
+        story_id: ID of the story
+        reorder_data: List of snippet IDs in desired order
+        current_user: Authenticated user (injected)
+        db: Database session (injected)
+
+    Returns:
+        ReorderResponse with success status
+    """
+    # Verify story exists
+    story = db.query(Story).filter(Story.id == story_id).first()
+    if not story:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Story not found",
+        )
+
+    # Verify user owns the story
+    if story.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to modify this story",
+        )
+
+    # Update display_order for each snippet
+    for order, snippet_id in enumerate(reorder_data.snippet_ids):
+        snippet = (
+            db.query(Snippet)
+            .filter(
+                Snippet.id == snippet_id,
+                Snippet.story_id == story_id,
+                Snippet.is_active == True,
+            )
+            .first()
+        )
+        if snippet:
+            snippet.display_order = order
+
+    db.commit()
+    print(
+        f"[API] ✅ Reordered {len(reorder_data.snippet_ids)} snippets for story {story_id}"
+    )
+
+    return ReorderResponse(
+        success=True,
+        message=f"Reordered {len(reorder_data.snippet_ids)} snippets",
+    )

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { X, ChevronLeft, ChevronRight, RefreshCw, Loader2, Sparkles, Archive, AlertTriangle, Lock } from "lucide-react";
+import { useState, useMemo, useCallback } from "react";
+import { X, ChevronLeft, ChevronRight, RefreshCw, Loader2, Sparkles, Archive, AlertTriangle, Lock, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { SnippetCard } from "@/components/projects/SnippetCard";
@@ -20,6 +20,7 @@ interface SnippetsOverlayProps {
     onLockSnippet?: (snippetId: number) => void;
     onDeleteSnippet?: (snippetId: number) => void;
     onRestoreSnippet?: (snippetId: number) => void;
+    onReorderSnippets?: (snippetIds: number[]) => void;
     isUpdatingSnippet?: boolean;
     projectTitle?: string;
     lockedCount?: number;
@@ -49,6 +50,7 @@ export function SnippetsOverlay({
     onLockSnippet,
     onDeleteSnippet,
     onRestoreSnippet,
+    onReorderSnippets,
     isUpdatingSnippet = false,
     projectTitle,
     lockedCount = 0,
@@ -57,9 +59,40 @@ export function SnippetsOverlay({
     const [editingSnippet, setEditingSnippet] = useState<Snippet | null>(null);
     const [showRegenerateWarning, setShowRegenerateWarning] = useState(false);
     const [viewMode, setViewMode] = useState<'active' | 'archived'>('active');
+    const [selectedPhase, setSelectedPhase] = useState<string>('all');
+    const [isPhaseDropdownOpen, setIsPhaseDropdownOpen] = useState(false);
 
-    // Get the snippets to display based on view mode
-    const displaySnippets = viewMode === 'active' ? snippets : archivedSnippets;
+    // Local state for optimistic reordering
+    const [localSnippets, setLocalSnippets] = useState<Snippet[]>(snippets);
+
+    // Sync local snippets when props change
+    useMemo(() => {
+        setLocalSnippets(snippets);
+    }, [snippets]);
+
+    // Phase display names mapping
+    const phaseDisplayNames: Record<string, string> = {
+        all: "All Chapters",
+        FAMILY_HISTORY: "Family History",
+        CHILDHOOD: "Childhood",
+        ADOLESCENCE: "Adolescence",
+        EARLY_ADULTHOOD: "Early Adulthood",
+        MIDLIFE: "Midlife",
+        PRESENT: "Present Day",
+    };
+
+    // Get unique phases from snippets
+    const availablePhases = useMemo(() => {
+        const phases = new Set(snippets.map(s => s.phase).filter(Boolean));
+        return ['all', ...Array.from(phases)];
+    }, [snippets]);
+
+    // Get the snippets to display based on view mode and phase filter
+    const baseSnippets = viewMode === 'active' ? localSnippets : archivedSnippets;
+    const displaySnippets = useMemo(() => {
+        if (selectedPhase === 'all') return baseSnippets;
+        return baseSnippets.filter(s => s.phase === selectedPhase);
+    }, [baseSnippets, selectedPhase]);
 
     // Calculate pagination
     const totalPages = Math.ceil(displaySnippets.length / CARDS_PER_PAGE);
@@ -85,6 +118,8 @@ export function SnippetsOverlay({
         setEditingSnippet(null);
         setShowRegenerateWarning(false);
         setViewMode('active');
+        setSelectedPhase('all');
+        setIsPhaseDropdownOpen(false);
         onClose();
     };
 
@@ -92,6 +127,14 @@ export function SnippetsOverlay({
     const handleViewModeChange = (mode: 'active' | 'archived') => {
         setViewMode(mode);
         setCurrentPage(0);
+        setSelectedPhase('all');
+    };
+
+    // Handle phase filter change
+    const handlePhaseChange = (phase: string) => {
+        setSelectedPhase(phase);
+        setCurrentPage(0);
+        setIsPhaseDropdownOpen(false);
     };
 
     // Handle edit card click
@@ -105,6 +148,29 @@ export function SnippetsOverlay({
             onLockSnippet(snippet.id);
         }
     };
+
+    // Handle reorder - move snippet from one position to another
+    const handleMoveSnippet = useCallback((fromIndex: number, toIndex: number) => {
+        if (toIndex < 0 || toIndex >= localSnippets.length) return;
+
+        const newSnippets = [...localSnippets];
+        const [movedSnippet] = newSnippets.splice(fromIndex, 1);
+        newSnippets.splice(toIndex, 0, movedSnippet);
+
+        // Optimistic update
+        setLocalSnippets(newSnippets);
+
+        // Persist to backend
+        if (onReorderSnippets) {
+            const snippetIds = newSnippets
+                .filter(s => s.id !== undefined)
+                .map(s => s.id as number);
+
+            if (snippetIds.length > 0) {
+                onReorderSnippets(snippetIds);
+            }
+        }
+    }, [localSnippets, onReorderSnippets]);
 
     // Handle delete
     const handleDeleteCard = (snippet: Snippet) => {
@@ -157,7 +223,8 @@ export function SnippetsOverlay({
             <div className="relative z-10 w-full max-w-6xl mx-4 max-h-[90vh] flex flex-col bg-card/95 backdrop-blur-md rounded-2xl border border-border shadow-2xl overflow-hidden">
                 {/* Header */}
                 <div className="flex items-center justify-between p-6 border-b border-border">
-                    <div className="flex items-center gap-3">
+                    {/* Left section - Title */}
+                    <div className="flex items-center gap-3 flex-1">
                         <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
                             <Sparkles className="w-5 h-5 text-primary" />
                         </div>
@@ -166,7 +233,10 @@ export function SnippetsOverlay({
                                 {projectTitle || "Your Story"}
                             </h2>
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <span>{snippets.length} {snippets.length === 1 ? "card" : "cards"}</span>
+                                <span>{displaySnippets.length} {displaySnippets.length === 1 ? "card" : "cards"}{selectedPhase !== 'all' && ` in ${phaseDisplayNames[selectedPhase] || selectedPhase}`}</span>
+                                {onReorderSnippets && viewMode === 'active' && displaySnippets.length > 1 && (
+                                    <span className="text-primary">• Use arrows to reorder</span>
+                                )}
                                 {lockedCount > 0 && (
                                     <span className="flex items-center gap-1 text-amber-600">
                                         <Lock className="w-3 h-3" />
@@ -181,7 +251,62 @@ export function SnippetsOverlay({
                             </div>
                         </div>
                     </div>
-                    <div className="flex items-center gap-3">
+
+                    {/* Center section - Chapter Filter Dropdown */}
+                    {snippets.length > 0 && viewMode === 'active' && (
+                        <div className="relative flex-shrink-0 mx-4">
+                            <button
+                                onClick={() => setIsPhaseDropdownOpen(!isPhaseDropdownOpen)}
+                                className={cn(
+                                    "flex items-center gap-2 px-4 py-2.5 rounded-lg border border-border",
+                                    "bg-background hover:bg-muted transition-colors",
+                                    "text-sm font-medium text-foreground",
+                                    "min-w-[180px] justify-between"
+                                )}
+                                aria-haspopup="listbox"
+                                aria-expanded={isPhaseDropdownOpen}
+                                aria-label="Select chapter to filter cards"
+                            >
+                                <span>{phaseDisplayNames[selectedPhase] || selectedPhase}</span>
+                                <ChevronDown className={cn(
+                                    "w-4 h-4 text-muted-foreground transition-transform",
+                                    isPhaseDropdownOpen && "rotate-180"
+                                )} />
+                            </button>
+
+                            {/* Dropdown Menu */}
+                            {isPhaseDropdownOpen && (
+                                <>
+                                    {/* Backdrop to close dropdown */}
+                                    <div
+                                        className="fixed inset-0 z-10"
+                                        onClick={() => setIsPhaseDropdownOpen(false)}
+                                    />
+                                    <div className="absolute top-full left-0 mt-1 w-full min-w-[180px] py-1 bg-card border border-border rounded-lg shadow-lg z-20">
+                                        {availablePhases.map((phase) => (
+                                            <button
+                                                key={phase}
+                                                onClick={() => handlePhaseChange(phase)}
+                                                className={cn(
+                                                    "w-full px-4 py-2 text-left text-sm transition-colors",
+                                                    selectedPhase === phase
+                                                        ? "bg-primary/10 text-primary font-medium"
+                                                        : "text-foreground hover:bg-muted"
+                                                )}
+                                                role="option"
+                                                aria-selected={selectedPhase === phase}
+                                            >
+                                                {phaseDisplayNames[phase] || phase}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Right section - Actions */}
+                    <div className="flex items-center gap-3 flex-1 justify-end">
                         {/* View Mode Toggle */}
                         {archivedSnippets.length > 0 && (
                             <div className="flex items-center rounded-lg border border-border overflow-hidden">
@@ -257,19 +382,25 @@ export function SnippetsOverlay({
                         </div>
                     ) : displaySnippets.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {currentSnippets.map((snippet, index) => (
-                                <SnippetCard
-                                    key={snippet.id || `${snippet.title}-${startIndex + index}`}
-                                    snippet={snippet}
-                                    index={startIndex + index}
-                                    className="animate-fade-in"
-                                    onEdit={viewMode === 'active' && onUpdateSnippet ? handleEditCard : undefined}
-                                    onLock={viewMode === 'active' && onLockSnippet ? handleLockCard : undefined}
-                                    onDelete={viewMode === 'active' && onDeleteSnippet ? handleDeleteCard : undefined}
-                                    onRestore={viewMode === 'archived' && onRestoreSnippet ? handleRestoreCard : undefined}
-                                    isArchived={viewMode === 'archived'}
-                                />
-                            ))}
+                            {currentSnippets.map((snippet, index) => {
+                                const globalIndex = startIndex + index;
+                                return (
+                                    <SnippetCard
+                                        key={snippet.id || `${snippet.title}-${globalIndex}`}
+                                        snippet={snippet}
+                                        index={globalIndex}
+                                        totalCount={displaySnippets.length}
+                                        className="animate-fade-in"
+                                        onEdit={viewMode === 'active' && onUpdateSnippet ? handleEditCard : undefined}
+                                        onLock={viewMode === 'active' && onLockSnippet ? handleLockCard : undefined}
+                                        onDelete={viewMode === 'active' && onDeleteSnippet ? handleDeleteCard : undefined}
+                                        onRestore={viewMode === 'archived' && onRestoreSnippet ? handleRestoreCard : undefined}
+                                        onMoveUp={viewMode === 'active' && onReorderSnippets ? () => handleMoveSnippet(globalIndex, globalIndex - 1) : undefined}
+                                        onMoveDown={viewMode === 'active' && onReorderSnippets ? () => handleMoveSnippet(globalIndex, globalIndex + 1) : undefined}
+                                        isArchived={viewMode === 'archived'}
+                                    />
+                                );
+                            })}
                         </div>
                     ) : viewMode === 'archived' ? (
                         <div className="flex flex-col items-center justify-center h-64 text-center px-6">

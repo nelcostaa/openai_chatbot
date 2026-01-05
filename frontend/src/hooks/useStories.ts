@@ -12,10 +12,12 @@ export interface Story {
 
 // Snippet types for game card generation
 export interface Snippet {
+    id?: number;
     title: string;
     content: string;
     phase: string;
     theme: string;
+    display_order: number;
 }
 
 export interface SnippetsResponse {
@@ -150,5 +152,29 @@ export const useCachedSnippets = (storyId: number | undefined) => {
         queryFn: () => null, // We never fetch - only use cache
         enabled: false, // Disable automatic fetching
         staleTime: Infinity, // Never consider cached data stale
+    });
+};
+
+/**
+ * Reorder snippets for a story.
+ * 
+ * Usage:
+ *   const { mutate: reorderSnippets } = useReorderSnippets(storyId);
+ *   reorderSnippets([3, 1, 2, 5, 4]); // Array of snippet IDs in new order
+ */
+export const useReorderSnippets = (storyId: number | undefined) => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (snippetIds: number[]): Promise<{ success: boolean; message: string }> => {
+            const response = await api.put(`/api/snippets/${storyId}/reorder`, {
+                snippet_ids: snippetIds,
+            });
+            return response.data;
+        },
+        onSuccess: () => {
+            // Invalidate cached snippets to refetch with new order
+            queryClient.invalidateQueries({ queryKey: ['snippets', storyId] });
+        },
     });
 };

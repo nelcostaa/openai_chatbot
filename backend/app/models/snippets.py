@@ -48,6 +48,9 @@ class Snippet(Base):
     is_active = Column(
         Boolean, default=True, nullable=False, index=True
     )  # Soft-delete flag
+    display_order = Column(
+        Integer, default=0, nullable=False
+    )  # Order for sorting cards (0-based)
 
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -71,5 +74,6 @@ class Snippet(Base):
             "phase": self.phase,
             "is_locked": self.is_locked,
             "is_active": self.is_active,
+            "display_order": self.display_order,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }

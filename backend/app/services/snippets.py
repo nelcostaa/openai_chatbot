@@ -55,11 +55,12 @@ class SnippetService:
             raise ValueError("GEMINI_API_KEY not set in environment")
         self.api_key = SecretStr(api_key_str)
 
-    def get_story_messages(self, story_id: int) -> List[Dict[str, str]]:
+    def get_story_messages(self, story_id: int) -> List[Dict[str, Optional[str]]]:
         """
         Fetch all messages for a story.
 
-        Returns list of dicts with 'role' and 'content' keys.
+        Returns list of dicts with 'role', 'content', and 'phase_context' keys.
+        phase_context is the chapter the message was collected in.
         """
         messages = (
             self.db.query(Message)
@@ -69,7 +70,12 @@ class SnippetService:
         )
 
         return [
-            {"role": str(msg.role), "content": str(msg.content)} for msg in messages
+            {
+                "role": str(msg.role),
+                "content": str(msg.content),
+                "phase_context": str(msg.phase_context) if msg.phase_context else None,
+            }
+            for msg in messages
         ]
 
     def get_existing_snippets(
@@ -96,7 +102,9 @@ class SnippetService:
         if not include_archived:
             query = query.filter(Snippet.is_active == True)  # noqa: E712
 
-        snippets = query.order_by(Snippet.created_at.asc()).all()
+        snippets = query.order_by(
+            Snippet.display_order.asc(), Snippet.created_at.asc()
+        ).all()
 
         snippet_list = [s.to_dict() for s in snippets]
 
@@ -281,7 +289,12 @@ class SnippetService:
         return [s.to_dict() for s in snippets]
 
     def _save_snippets(
-        self, story_id: int, user_id: int, snippets: List[Dict]
+        self,
+        story_id: int,
+        user_id: int,
+        snippets: List[Dict],
+        hardcoded_phase: Optional[str] = None,
+        start_display_order: int = 0,
     ) -> List[Snippet]:
         """
         Save generated snippets to the database.
@@ -289,20 +302,27 @@ class SnippetService:
         Args:
             story_id: ID of the story
             user_id: ID of the user who owns the story
-            snippets: List of snippet dicts with title, content, phase, theme
+            snippets: List of snippet dicts with title, content, theme
+            hardcoded_phase: If provided, overrides any phase in snippet_data.
+                            Used for per-chapter generation where we KNOW the phase.
+            start_display_order: Starting index for display_order (for appending)
 
         Returns:
             List of created Snippet objects
         """
         created = []
-        for snippet_data in snippets:
+        for index, snippet_data in enumerate(snippets):
+            # Hardcoded phase takes precedence - ensures 100% accurate labels
+            phase = hardcoded_phase if hardcoded_phase else snippet_data.get("phase")
+
             snippet = Snippet(
                 story_id=story_id,
                 user_id=user_id,
                 title=snippet_data["title"],
                 content=snippet_data["content"],
-                phase=snippet_data.get("phase"),
+                phase=phase,
                 theme=snippet_data.get("theme"),
+                display_order=start_display_order + index,
             )
             self.db.add(snippet)
             created.append(snippet)
@@ -315,14 +335,202 @@ class SnippetService:
 
         return created
 
+    # Valid phases for snippet labels (excludes GREETING and SYNTHESIS which don't generate cards)
+    VALID_SNIPPET_PHASES = [
+        "FAMILY_HISTORY",
+        "CHILDHOOD",
+        "ADOLESCENCE",
+        "EARLY_ADULTHOOD",
+        "MIDLIFE",
+        "PRESENT",
+    ]
+
+    # Minimum user messages required per chapter to generate snippets
+    MIN_MESSAGES_PER_CHAPTER = 2
+
+    def _group_messages_by_phase(
+        self, messages: List[Dict[str, Optional[str]]]
+    ) -> Dict[str, List[Dict[str, Optional[str]]]]:
+        """
+        Group messages by their phase_context (chapter).
+
+        Args:
+            messages: List of message dicts with role, content, phase_context
+
+        Returns:
+            Dict mapping phase names to lists of messages for that phase
+        """
+        grouped: Dict[str, List[Dict[str, str]]] = {}
+
+        for msg in messages:
+            phase = msg.get("phase_context")
+            # Skip messages without phase context or from non-content phases
+            if not phase or phase not in self.VALID_SNIPPET_PHASES:
+                continue
+
+            if phase not in grouped:
+                grouped[phase] = []
+            grouped[phase].append(msg)
+
+        return grouped
+
+    def _generate_snippets_for_phase(
+        self,
+        phase: str,
+        messages: List[Dict[str, Optional[str]]],
+        locked_snippets: List[Dict],
+        model_cascade: List[str],
+    ) -> Dict:
+        """
+        Generate snippets for a single chapter/phase.
+
+        AI generates title, content, and theme only - phase is hardcoded by caller.
+
+        Args:
+            phase: The chapter name (e.g., "CHILDHOOD")
+            messages: Messages belonging to this chapter
+            locked_snippets: Locked snippets to avoid duplicating
+            model_cascade: List of models to try
+
+        Returns:
+            Dict with success, snippets (without phase - caller adds it), model, error
+        """
+        # Build chapter text for AI
+        chapter_text = "\n".join(
+            [f"{msg['role'].upper()}: {msg['content']}" for msg in messages]
+        )
+
+        # Build locked snippets context for this phase
+        phase_locked = [s for s in locked_snippets if s.get("phase") == phase]
+        locked_context = ""
+        if phase_locked:
+            locked_topics = "\n".join(
+                [
+                    (
+                        f"- {s['title']}: {s['content'][:100]}..."
+                        if len(s["content"]) > 100
+                        else f"- {s['title']}: {s['content']}"
+                    )
+                    for s in phase_locked
+                ]
+            )
+            locked_context = f"""
+
+IMPORTANT - EXISTING LOCKED CARDS FOR THIS CHAPTER (DO NOT DUPLICATE):
+The following card(s) already exist for this chapter. Generate NEW content about DIFFERENT moments:
+
+{locked_topics}"""
+
+        # System instruction - NO phase in output, AI only generates title/content/theme
+        system_instruction = f"""You are a story curator creating content for printable game cards.
+
+Your task: Analyze this SINGLE CHAPTER of a life story and extract meaningful, emotionally resonant moments.
+
+OUTPUT FORMAT: You MUST respond with ONLY valid JSON, no other text. Use this exact structure:
+{{
+  "snippets": [
+    {{
+      "title": "2-5 word catchy title",
+      "content": "The snippet text, max 300 characters. Written in third person, narrative style.",
+      "theme": "family|growth|challenge|adventure|love|legacy|identity|friendship"
+    }}
+  ]
+}}
+
+RULES:
+1. Generate 1-3 snippets based on chapter depth (fewer for short chapters)
+2. Each snippet content MUST be under 300 characters
+3. Write in third person ("They discovered...", "Growing up, they...")
+4. Focus on emotional highlights, turning points, and defining moments from THIS chapter
+5. Each snippet should stand alone as a meaningful story beat
+6. If the chapter is very short or lacks meaningful content, generate just 1 snippet
+7. ONLY output the JSON object, nothing else{locked_context}"""
+
+        # User prompt with chapter content
+        user_prompt = f"""Analyze this chapter of a life story and generate snippets for game cards:
+
+---CHAPTER: {phase}---
+{chapter_text}
+---END CHAPTER---
+
+Remember: Output ONLY the JSON object with snippets array. Each snippet max 300 characters. Do NOT include a "phase" field - the chapter is already known."""
+
+        # Try models in cascade
+        for attempt_idx, model_name in enumerate(model_cascade):
+            try:
+                print(
+                    f"[Snippets] [{phase}] Attempt {attempt_idx + 1}: Trying '{model_name}'..."
+                )
+
+                llm = ChatGoogleGenerativeAI(
+                    model=model_name,
+                    api_key=self.api_key,
+                    temperature=0.7,
+                    convert_system_message_to_human=True,
+                )
+
+                response = llm.invoke(
+                    [
+                        SystemMessage(content=system_instruction),
+                        HumanMessage(content=user_prompt),
+                    ]
+                )
+
+                print(f"[Snippets] [{phase}] SUCCESS with {model_name}!")
+
+                # Parse JSON response
+                content = response.content
+                if isinstance(content, list):
+                    content = " ".join(str(item) for item in content)
+
+                result = self._parse_response(str(content), model_name)
+                return result
+
+            except Exception as e:
+                error_message = str(e)
+                print(
+                    f"[Snippets] [{phase}] {model_name} FAILED: {error_message[:100]}"
+                )
+
+                is_rate_limit = any(
+                    indicator in error_message.lower()
+                    for indicator in [
+                        "429",
+                        "resource_exhausted",
+                        "rate limit",
+                        "quota",
+                    ]
+                )
+
+                if is_rate_limit and attempt_idx < len(model_cascade) - 1:
+                    continue
+
+                if attempt_idx == len(model_cascade) - 1:
+                    return {
+                        "success": False,
+                        "snippets": [],
+                        "count": 0,
+                        "model": None,
+                        "error": f"All models failed for {phase}. Last error: {error_message}",
+                    }
+
+        return {
+            "success": False,
+            "snippets": [],
+            "count": 0,
+            "model": None,
+            "error": f"Failed to generate snippets for {phase}",
+        }
+
     def generate_snippets(self, story_id: int) -> Dict:
         """
         Generate story snippets for a given story and persist to database.
 
-        This method:
-        1. Deletes any existing snippets for the story
-        2. Generates new snippets using AI
-        3. Saves the new snippets to the database
+        This method generates snippets PER CHAPTER with hardcoded phase labels:
+        1. Groups messages by their phase_context (chapter)
+        2. For each chapter with sufficient messages, generates snippets via AI
+        3. Hardcodes the chapter name as the snippet's phase (no AI guessing)
+        4. Saves all snippets to the database
 
         Args:
             story_id: ID of the story to generate snippets for
@@ -332,7 +540,7 @@ class SnippetService:
                 - success (bool): Whether generation succeeded
                 - snippets (list): Array of snippet objects
                 - count (int): Number of snippets generated
-                - model (str|None): Model that succeeded
+                - model (str|None): Last model that succeeded
                 - error (str|None): Error message if failed
         """
         # Verify story exists and capture user_id immediately
@@ -346,10 +554,9 @@ class SnippetService:
                 "error": f"Story with ID {story_id} not found",
             }
 
-        # Capture user_id before any operations that might expire the session object
         user_id = story.user_id
 
-        # Fetch messages
+        # Fetch messages with phase_context
         messages = self.get_story_messages(story_id)
         if not messages:
             return {
@@ -360,170 +567,113 @@ class SnippetService:
                 "error": "No messages found for this story",
             }
 
-        # Get locked snippets BEFORE deleting - these topics should be avoided in regeneration
-        locked_snippets = self.get_locked_snippets(story_id)
-        locked_count = len(locked_snippets)
-
-        # Delete existing unlocked snippets before regeneration (locked ones are preserved)
-        self.delete_snippets(story_id)
-
-        # Build story text for context
-        story_text = "\n".join(
-            [f"{msg['role'].upper()}: {msg['content']}" for msg in messages]
+        # Group messages by chapter
+        messages_by_phase = self._group_messages_by_phase(messages)
+        print(
+            f"[Snippets] Story {story_id}: Found chapters: {list(messages_by_phase.keys())}"
         )
 
-        # Build locked snippets context if any exist
-        locked_context = ""
-        if locked_snippets:
-            locked_topics = "\n".join(
-                [
-                    (
-                        f"- {s['title']}: {s['content'][:100]}..."
-                        if len(s["content"]) > 100
-                        else f"- {s['title']}: {s['content']}"
-                    )
-                    for s in locked_snippets
-                ]
-            )
-            locked_context = f"""
+        if not messages_by_phase:
+            return {
+                "success": False,
+                "snippets": [],
+                "count": 0,
+                "model": None,
+                "error": "No messages with valid phase context found",
+            }
 
-IMPORTANT - EXISTING LOCKED CARDS (DO NOT DUPLICATE):
-The following {locked_count} card(s) already exist and are LOCKED. You must NOT create new snippets about the same topics, events, or moments. Generate NEW content about DIFFERENT parts of the story:
+        # Get locked snippets BEFORE deleting
+        locked_snippets = self.get_locked_snippets(story_id)
 
-{locked_topics}
+        # Delete existing unlocked snippets
+        self.delete_snippets(story_id)
 
-Generate snippets about OTHER moments from the story that are NOT covered by these locked cards."""
-
-        # System instruction for structured JSON output
-        system_instruction = f"""You are a story curator creating content for printable game cards.
-
-Your task: Analyze the life story conversation and extract the most meaningful, emotionally resonant moments.
-
-OUTPUT FORMAT: You MUST respond with ONLY valid JSON, no other text. Use this exact structure:
-{{
-  "snippets": [
-    {{
-      "title": "2-5 word catchy title",
-      "content": "The snippet text, max 300 characters. Written in third person, narrative style.",
-      "phase": "CHILDHOOD|ADOLESCENCE|EARLY_ADULTHOOD|MIDLIFE|PRESENT|FAMILY_HISTORY",
-      "theme": "family|growth|challenge|adventure|love|legacy|identity|friendship"
-    }}
-  ]
-}}
-
-RULES:
-1. Generate 3-8 snippets based on story depth (fewer for short stories, more for rich ones)
-2. Each snippet content MUST be under 300 characters
-3. Write in third person ("They discovered...", "Growing up, they...")
-4. Focus on emotional highlights, turning points, and defining moments
-5. Each snippet should stand alone as a meaningful story beat
-6. Vary the themes - don't repeat the same theme consecutively
-7. If the story is very short or lacks content, generate just 2-3 snippets
-8. ONLY output the JSON object, nothing else{locked_context}"""
-
-        # User prompt with story content
-        user_prompt = f"""Analyze this life story conversation and generate snippets for game cards:
-
----STORY START---
-{story_text}
----STORY END---
-
-Remember: Output ONLY the JSON object with snippets array. Each snippet max 300 characters."""
-
-        # Try models in cascade
+        # Get model cascade
         model_cascade = get_model_cascade()
-        print(f"[Snippets] 🔄 Model cascade: {model_cascade}")
-        print(f"[Snippets] 🔄 Story ID: {story_id}, User ID: {user_id}")
+        print(f"[Snippets] Model cascade: {model_cascade}")
 
-        for attempt_idx, model_name in enumerate(model_cascade):
-            try:
+        # Generate snippets for each chapter
+        all_saved_snippets: List[Snippet] = []
+        last_successful_model = None
+        errors = []
+        display_order = 0
+
+        # Process chapters in chronological order
+        for phase in self.VALID_SNIPPET_PHASES:
+            if phase not in messages_by_phase:
+                continue
+
+            phase_messages = messages_by_phase[phase]
+
+            # Count user messages (skip assistant messages for threshold check)
+            user_message_count = sum(
+                1 for m in phase_messages if m.get("role") == "user"
+            )
+
+            if user_message_count < self.MIN_MESSAGES_PER_CHAPTER:
                 print(
-                    f"[Snippets] 🔄 Attempt {attempt_idx + 1}/{len(model_cascade)}: Trying '{model_name}'..."
+                    f"[Snippets] [{phase}] Skipping - only {user_message_count} user messages (need {self.MIN_MESSAGES_PER_CHAPTER})"
                 )
+                continue
 
-                llm = ChatGoogleGenerativeAI(
-                    model=model_name,
-                    api_key=self.api_key,
-                    temperature=0.7,
-                    convert_system_message_to_human=True,
+            print(
+                f"[Snippets] [{phase}] Generating snippets from {len(phase_messages)} messages..."
+            )
+
+            result = self._generate_snippets_for_phase(
+                phase=phase,
+                messages=phase_messages,
+                locked_snippets=locked_snippets,
+                model_cascade=model_cascade,
+            )
+
+            if result["success"] and result["snippets"]:
+                last_successful_model = result["model"]
+
+                # Save snippets with HARDCODED phase - this is the key change!
+                saved = self._save_snippets(
+                    story_id=story_id,
+                    user_id=user_id,
+                    snippets=result["snippets"],
+                    hardcoded_phase=phase,  # Phase is hardcoded from chapter, not AI
+                    start_display_order=display_order,
                 )
-                print(f"[Snippets] 🔄 LLM initialized for {model_name}")
+                all_saved_snippets.extend(saved)
+                display_order += len(saved)
+                print(f"[Snippets] [{phase}] Saved {len(saved)} snippets")
+            else:
+                errors.append(f"{phase}: {result.get('error', 'Unknown error')}")
+                print(f"[Snippets] [{phase}] Failed: {result.get('error')}")
 
-                # Call Gemini
-                print(f"[Snippets] 🔄 Sending request to {model_name}...")
-                response = llm.invoke(
-                    [
-                        SystemMessage(content=system_instruction),
-                        HumanMessage(content=user_prompt),
-                    ]
-                )
-                print(f"[Snippets] 🔄 Response received from {model_name}")
-
-                print(f"[Snippets] ✅ SUCCESS with {model_name}!")
-
-                # Parse JSON response - handle both string and list content
-                content = response.content
-                if isinstance(content, list):
-                    # Join list items if response is a list
-                    content = " ".join(str(item) for item in content)
-
-                result = self._parse_response(str(content), model_name)
-
-                # If parsing succeeded, save snippets to database
-                if result["success"] and result["snippets"]:
-                    saved_snippets = self._save_snippets(
-                        story_id=story_id, user_id=user_id, snippets=result["snippets"]
-                    )
-                    # Update result with saved snippet data (includes IDs)
-                    result["snippets"] = [s.to_dict() for s in saved_snippets]
-
-                return result
-
-            except Exception as e:
-                error_message = str(e)
-                print(f"[Snippets] ❌ {model_name} FAILED")
-                print(f"[Snippets] ❌ Error type: {type(e).__name__}")
-                print(f"[Snippets] ❌ Error message: {error_message[:200]}")
-
-                # Check if rate limit
-                is_rate_limit = any(
-                    indicator in error_message.lower()
-                    for indicator in [
-                        "429",
-                        "resource_exhausted",
-                        "rate limit",
-                        "quota",
-                    ]
-                )
-
-                if is_rate_limit:
-                    print(f"[Snippets] 🔄 Rate limit detected, trying next model...")
-
-                if is_rate_limit and attempt_idx < len(model_cascade) - 1:
-                    print(f"[Snippets] 🔄 Moving to next model...")
-                    continue
-
-                # Last model or non-rate-limit error
-                if attempt_idx == len(model_cascade) - 1:
-                    print(f"[Snippets] ❌ ALL MODELS EXHAUSTED")
-                    return {
-                        "success": False,
-                        "snippets": [],
-                        "count": 0,
-                        "model": None,
-                        "error": f"All models failed. Last error: {error_message}",
-                    }
-
-        return {
-            "success": False,
-            "snippets": [],
-            "count": 0,
-            "model": None,
-            "error": "Failed to generate snippets with any model",
-        }
+        # Return combined results
+        if all_saved_snippets:
+            return {
+                "success": True,
+                "snippets": [s.to_dict() for s in all_saved_snippets],
+                "count": len(all_saved_snippets),
+                "model": last_successful_model,
+                "error": None if not errors else f"Partial errors: {'; '.join(errors)}",
+            }
+        else:
+            return {
+                "success": False,
+                "snippets": [],
+                "count": 0,
+                "model": None,
+                "error": (
+                    f"Failed to generate any snippets. Errors: {'; '.join(errors)}"
+                    if errors
+                    else "No snippets generated"
+                ),
+            }
 
     def _parse_response(self, response_text: str, model_name: str) -> Dict:
-        """Parse and validate the JSON response from Gemini."""
+        """
+        Parse and validate the JSON response from Gemini.
+
+        Note: Phase is NOT expected in AI output - it's hardcoded by the caller
+        based on which chapter the messages came from.
+        """
         try:
             text = response_text.strip()
 
@@ -547,7 +697,7 @@ Remember: Output ONLY the JSON object with snippets array. Each snippet max 300 
 
                 title = snippet.get("title", "").strip()
                 content = snippet.get("content", "").strip()
-                phase = snippet.get("phase", "PRESENT").upper()
+                # Theme from AI, phase will be hardcoded by caller
                 theme = snippet.get("theme", "growth").lower()
 
                 if not title or not content:
@@ -561,8 +711,8 @@ Remember: Output ONLY the JSON object with snippets array. Each snippet max 300 
                     {
                         "title": title,
                         "content": content,
-                        "phase": phase,
                         "theme": theme,
+                        # Note: No phase here - hardcoded by caller in _save_snippets
                     }
                 )
 

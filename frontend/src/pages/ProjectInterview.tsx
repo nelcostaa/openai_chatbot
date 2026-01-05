@@ -4,7 +4,7 @@ import { ArrowLeft, FolderOpen, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ChatArea } from "@/components/chat/ChatArea";
 import { SnippetsOverlay } from "@/components/projects/SnippetsOverlay";
-import { useProject, useCreateProject, useSnippets, useProjectSnippets, useUpdateSnippet, useArchivedSnippets, useLockSnippet, useDeleteSnippet, useRestoreSnippet } from "@/hooks/useProjects";
+import { useProject, useCreateProject, useSnippets, useProjectSnippets, useUpdateSnippet, useArchivedSnippets, useLockSnippet, useDeleteSnippet, useRestoreSnippet, useReorderSnippets } from "@/hooks/useProjects";
 import type { UpdateSnippetDto } from "@/hooks/useProjects";
 import { useSendMessage } from "@/hooks/useChat";
 
@@ -31,6 +31,7 @@ export default function ProjectInterview() {
     const lockSnippet = useLockSnippet();
     const deleteSnippet = useDeleteSnippet();
     const restoreSnippet = useRestoreSnippet();
+    const reorderSnippets = useReorderSnippets(projectId);
 
     // Auto-create project when id === "new"
     useEffect(() => {
@@ -76,6 +77,10 @@ export default function ProjectInterview() {
         if (projectId) {
             restoreSnippet.mutate({ snippetId, projectId });
         }
+    };
+
+    const handleReorderSnippets = (snippetIds: number[]) => {
+        reorderSnippets.mutate(snippetIds);
     };
 
     if (isLoading || (id === "new" && (isCreatingProject || createProject.isPending))) {
@@ -159,6 +164,7 @@ export default function ProjectInterview() {
                 onLockSnippet={handleLockSnippet}
                 onDeleteSnippet={handleDeleteSnippet}
                 onRestoreSnippet={handleRestoreSnippet}
+                onReorderSnippets={handleReorderSnippets}
                 isUpdatingSnippet={updateSnippet.isPending}
                 projectTitle={project?.title}
                 lockedCount={lockedCount}

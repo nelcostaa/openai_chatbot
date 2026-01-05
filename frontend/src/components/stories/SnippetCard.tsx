@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { ChevronUp, ChevronDown } from "lucide-react";
 import type { Snippet } from "@/hooks/useStories";
 
 /**
@@ -42,7 +43,10 @@ const phaseDisplayNames: Record<string, string> = {
 interface SnippetCardProps {
     snippet: Snippet;
     index?: number;
+    totalCount?: number;
     className?: string;
+    onMoveUp?: () => void;
+    onMoveDown?: () => void;
 }
 
 /**
@@ -53,10 +57,14 @@ interface SnippetCardProps {
  * - Title and content with proper typography
  * - Phase indicator for context
  * - Consistent aspect ratio for printing
+ * - Reorder controls (up/down arrows)
  */
-export function SnippetCard({ snippet, index, className }: SnippetCardProps) {
+export function SnippetCard({ snippet, index, totalCount, className, onMoveUp, onMoveDown }: SnippetCardProps) {
     const gradient = themeGradients[snippet.theme] || themeGradients.default;
     const phaseName = phaseDisplayNames[snippet.phase] || snippet.phase;
+
+    const canMoveUp = index !== undefined && index > 0;
+    const canMoveDown = index !== undefined && totalCount !== undefined && index < totalCount - 1;
 
     return (
         <div
@@ -81,6 +89,46 @@ export function SnippetCard({ snippet, index, className }: SnippetCardProps) {
                     <span className="text-sm font-bold text-white">
                         {index + 1}
                     </span>
+                </div>
+            )}
+
+            {/* Reorder controls */}
+            {(onMoveUp || onMoveDown) && (
+                <div className="absolute top-12 left-3 flex flex-col gap-1">
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onMoveUp?.();
+                        }}
+                        disabled={!canMoveUp}
+                        className={cn(
+                            "w-6 h-6 rounded bg-white/20 backdrop-blur-sm flex items-center justify-center transition-all",
+                            canMoveUp
+                                ? "hover:bg-white/40 cursor-pointer"
+                                : "opacity-30 cursor-not-allowed"
+                        )}
+                        aria-label="Move card up"
+                        tabIndex={0}
+                    >
+                        <ChevronUp className="w-4 h-4 text-white" />
+                    </button>
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onMoveDown?.();
+                        }}
+                        disabled={!canMoveDown}
+                        className={cn(
+                            "w-6 h-6 rounded bg-white/20 backdrop-blur-sm flex items-center justify-center transition-all",
+                            canMoveDown
+                                ? "hover:bg-white/40 cursor-pointer"
+                                : "opacity-30 cursor-not-allowed"
+                        )}
+                        aria-label="Move card down"
+                        tabIndex={0}
+                    >
+                        <ChevronDown className="w-4 h-4 text-white" />
+                    </button>
                 </div>
             )}
 
