@@ -15,6 +15,8 @@ interface PhaseTimelineProps {
   currentStep?: number;
   totalSteps?: number;
   currentPhase?: string;
+  onPhaseSelect?: (phaseId: string) => void;
+  isJumping?: boolean;
 }
 
 export function PhaseTimeline({
@@ -23,7 +25,9 @@ export function PhaseTimeline({
   currentPhaseIndex = 0,
   currentStep,
   totalSteps,
-  currentPhase = ""
+  currentPhase = "",
+  onPhaseSelect,
+  isJumping = false,
 }: PhaseTimelineProps) {
   // Build phases from phaseOrder if provided, otherwise use legacy phases
   const phases: Phase[] = phaseOrder.length > 0
@@ -48,6 +52,15 @@ export function PhaseTimeline({
     return null;
   }
 
+  // Handle click on phase ball
+  const handlePhaseClick = (phaseId: string, index: number) => {
+    // Don't allow clicking if already on this phase or during jump transition
+    if (index === currentPhaseIndex || isJumping || !onPhaseSelect) {
+      return;
+    }
+    onPhaseSelect(phaseId);
+  };
+
   return (
     <div className="px-6 py-5 border-b border-border bg-card">
       <div className="flex items-center justify-between mb-4">
@@ -59,29 +72,50 @@ export function PhaseTimeline({
             </span>
           )}
         </h2>
-        <span className="text-base text-muted-foreground">
-          Chapter {stepNumber} of {totalStepCount}
-        </span>
+        <div className="flex items-center gap-3">
+          {onPhaseSelect && (
+            <span className="text-xs text-muted-foreground">
+              Click any chapter to jump
+            </span>
+          )}
+          <span className="text-base text-muted-foreground">
+            Chapter {stepNumber} of {totalStepCount}
+          </span>
+        </div>
       </div>
 
       <div className="flex items-center gap-2">
         {phases.map((phase, index) => (
           <div key={phase.id} className="flex items-center flex-1">
             <div className="flex flex-col items-center flex-1">
-              <div
+              <button
+                type="button"
+                onClick={() => handlePhaseClick(phase.id, index)}
+                disabled={isJumping || index === currentPhaseIndex || !onPhaseSelect}
                 className={cn(
                   "w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium transition-all",
                   phase.status === "complete" && "bg-timeline-complete text-primary-foreground",
                   phase.status === "active" && "bg-timeline-active text-primary-foreground ring-4 ring-primary/20",
-                  phase.status === "inactive" && "bg-timeline-inactive text-muted-foreground"
+                  phase.status === "inactive" && "bg-timeline-inactive text-muted-foreground",
+                  // Clickable styles
+                  onPhaseSelect && index !== currentPhaseIndex && !isJumping && [
+                    "cursor-pointer hover:scale-110 hover:ring-2 hover:ring-primary/40",
+                    phase.status === "complete" && "hover:bg-timeline-complete/90",
+                    phase.status === "inactive" && "hover:bg-muted hover:text-foreground",
+                  ],
+                  // Disabled styles
+                  (isJumping || index === currentPhaseIndex || !onPhaseSelect) && "cursor-default",
+                  isJumping && "opacity-50"
                 )}
+                aria-label={`Jump to ${phase.label}`}
+                title={index === currentPhaseIndex ? "Current chapter" : `Jump to ${phase.label}`}
               >
                 {phase.status === "complete" ? (
                   <Check className="w-5 h-5" />
                 ) : (
                   index + 1
                 )}
-              </div>
+              </button>
               <span
                 className={cn(
                   "text-sm mt-2 text-center",

@@ -256,6 +256,38 @@ class InterviewService:
                 return match.group(1)
         return None
 
+    def detect_phase_jump(self, message: str) -> Optional[str]:
+        """Detect if user wants to jump to a specific phase (not just next)."""
+        import re
+
+        if "[Jump to phase:" in message:
+            match = re.search(r"\[Jump to phase: ([^\]]+)\]", message)
+            if match:
+                return match.group(1)
+        return None
+
+    def jump_to_phase(self, story: Story, target_phase: str) -> str:
+        """
+        Jump story to a specific phase (allows jumping backwards or forwards).
+
+        Args:
+            story: The story to update
+            target_phase: The phase to jump to
+
+        Returns:
+            The new phase name, or current phase if target is invalid
+        """
+        phase_order = self.get_phase_order(story.age_range)
+
+        # Validate target phase is in the user's phase order
+        if target_phase not in phase_order:
+            return story.current_phase
+
+        # Update the story's current phase
+        story.current_phase = target_phase
+        self.db.commit()
+        return target_phase
+
     def advance_to_next_phase(self, story: Story) -> str:
         """Advance story to next phase and return new phase name."""
         phase_order = self.get_phase_order(story.age_range)
@@ -295,9 +327,15 @@ class InterviewService:
             story.current_phase = phase_order[0]  # FAMILY_HISTORY
             self.db.commit()
 
-        # 3. Handle explicit phase advance
+        # 3. Handle explicit phase advance (next chapter) or jump (specific chapter)
         target_phase = self.detect_phase_advance(user_content)
-        if target_phase or advance_phase:
+        jump_target = self.detect_phase_jump(user_content)
+
+        if jump_target:
+            # User clicked on a specific chapter ball - jump directly
+            self.jump_to_phase(story, jump_target)
+        elif target_phase or advance_phase:
+            # User clicked "Next Chapter" button - advance by one
             self.advance_to_next_phase(story)
 
         # 4. Save User Message to DB

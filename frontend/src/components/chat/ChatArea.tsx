@@ -3,7 +3,7 @@ import { PhaseTimeline } from "./PhaseTimeline";
 import { ChatMessage } from "./ChatMessage";
 import { AgeSelectionCards } from "./AgeSelectionCards";
 import { InputBar } from "./InputBar";
-import { useProjectMessages, SendMessageResponse, PHASE_DISPLAY_INFO } from "@/hooks/useChat";
+import { useProjectMessages, SendMessageResponse, PHASE_DISPLAY_INFO, useJumpToPhase, PhaseJumpResponse } from "@/hooks/useChat";
 import { useQueryClient } from "@tanstack/react-query";
 
 interface Message {
@@ -34,6 +34,9 @@ export function ChatArea({ sendMessage, projectId, initialPhase, initialAgeRange
   const { data: apiMessages = [], isLoading } = useProjectMessages(projectId);
   const [selectedAge, setSelectedAge] = useState<string | null>(initialAgeRange || null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Phase jump mutation
+  const jumpToPhase = useJumpToPhase(projectId);
 
   // Phase state tracking - initialize with project data if available
   const [phaseState, setPhaseState] = useState<PhaseState>({
@@ -132,6 +135,29 @@ export function ChatArea({ sendMessage, projectId, initialPhase, initialAgeRange
     }
   };
 
+  // Handle clicking on a phase in the timeline to jump to it
+  const handlePhaseSelect = async (phaseId: string) => {
+    // Don't jump if already on this phase or if jumping is in progress
+    if (phaseId === phaseState.phase || jumpToPhase.isPending) {
+      return;
+    }
+
+    try {
+      const response = await jumpToPhase.mutateAsync(phaseId);
+      // Update phase state with response from backend
+      setPhaseState(prev => ({
+        ...prev,
+        phase: response.current_phase,
+        phaseIndex: response.phase_index,
+        phaseOrder: response.phase_order,
+      }));
+      // Refresh messages to show any transition message
+      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'messages'] });
+    } catch (error) {
+      console.error("Failed to jump to phase:", error);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -165,6 +191,8 @@ export function ChatArea({ sendMessage, projectId, initialPhase, initialAgeRange
         phaseOrder={phaseState.phaseOrder}
         currentPhaseIndex={phaseState.phaseIndex}
         currentPhase={phaseState.phase}
+        onPhaseSelect={handlePhaseSelect}
+        isJumping={jumpToPhase.isPending}
       />
 
       <div className="flex-1 overflow-y-auto px-6 py-6 scrollbar-thin">

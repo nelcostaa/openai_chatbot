@@ -74,5 +74,30 @@ export const useSendMessage = (projectId: number | undefined) => {
     });
 };
 
+// Phase jump response type (subset of SendMessageResponse)
+export interface PhaseJumpResponse {
+    phase: string;
+    phase_order: string[];
+    phase_index: number;
+    age_range: string | null;
+    phase_description: string;
+}
+
+// Jump to a specific phase/chapter
+export const useJumpToPhase = (projectId: number | undefined) => {
+    return useMutation({
+        mutationFn: async (targetPhase: string): Promise<PhaseJumpResponse> => {
+            if (!projectId) {
+                throw new Error('Project ID is required');
+            }
+            const response = await api.put<PhaseJumpResponse>(
+                `/api/interview/${projectId}/phase`,
+                { target_phase: targetPhase }
+            );
+            return response.data;
+        },
+    });
+};
+
 // Legacy export for backward compatibility
 export { useProjectMessages as useStoryMessages };
