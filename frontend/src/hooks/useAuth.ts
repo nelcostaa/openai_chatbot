@@ -61,6 +61,11 @@ export const useRegister = () => {
     });
 };
 
+interface Story {
+    id: number;
+    title: string;
+}
+
 /**
  * Login existing user
  */
@@ -79,7 +84,25 @@ export const useLogin = () => {
                 headers: { Authorization: `Bearer ${data.access_token}` },
             });
             login(data.access_token, userResponse.data);
-            navigate('/dashboard');
+
+            // Fetch user's stories to determine navigation
+            try {
+                const storiesResponse = await api.get<Story[]>('/api/stories/', {
+                    headers: { Authorization: `Bearer ${data.access_token}` },
+                });
+                const stories = storiesResponse.data;
+
+                if (stories.length === 1) {
+                    // Single story - go directly to chat
+                    navigate(`/project/${stories[0].id}`);
+                } else {
+                    // Multiple stories - go to dashboard
+                    navigate('/dashboard');
+                }
+            } catch {
+                // Fallback to dashboard on error
+                navigate('/dashboard');
+            }
         },
     });
 };

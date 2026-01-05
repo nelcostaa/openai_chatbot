@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, BookOpen, ArrowRight, User, LogOut } from "lucide-react";
+import { Plus, BookOpen, ArrowRight, User, LogOut, Sparkles, PenLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StoryCard } from "@/components/stories/StoryCard";
 import { SnippetPreview } from "@/components/stories/SnippetPreview";
@@ -93,54 +93,65 @@ export default function MyStories() {
       {/* Main Content */}
       <main className="max-w-6xl mx-auto px-6 py-10">
         {/* Welcome Section */}
-        <div className="mb-10">
+        <div className="mb-6">
           <p className="text-muted-foreground text-base mb-2">{currentDate}</p>
           <h1 className="font-story text-4xl font-semibold text-foreground mb-2">
             Welcome back, {userName}
           </h1>
-          <p className="text-muted-foreground text-lg">
-            Your stories are waiting to be told.
-          </p>
         </div>
 
-        {/* Quick Actions */}
-        <div className="flex flex-wrap gap-4 mb-12">
+        {/* Hero Continue Story Section */}
+        {storiesArray.length > 0 && (
+          <div className="mb-10 relative overflow-hidden bg-gradient-to-br from-primary/10 via-primary/5 to-background border border-primary/20 rounded-2xl p-8">
+            <div className="absolute top-4 right-4 opacity-10">
+              <Sparkles className="w-32 h-32 text-primary" />
+            </div>
+            <div className="relative z-10">
+              <div className="flex items-center gap-2 text-primary mb-3">
+                <PenLine className="w-5 h-5" />
+                <span className="text-sm font-medium uppercase tracking-wide">Pick up where you left off</span>
+              </div>
+              <h2 className="font-story text-3xl font-semibold text-foreground mb-2">
+                {storiesArray[0].title}
+              </h2>
+              <p className="text-muted-foreground text-lg mb-6 max-w-xl">
+                Your story is waiting. Every memory you capture becomes a treasure for generations to come.
+              </p>
+              <Button
+                onClick={() => handleContinue(storiesArray[0].id.toString())}
+                size="lg"
+                className="h-14 px-8 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200 bg-primary hover:bg-primary/90"
+              >
+                Continue Your Story
+                <ArrowRight className="w-5 h-5 ml-2" />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Secondary Actions */}
+        <div className="flex flex-wrap gap-4 mb-10">
           <Button
             onClick={handleNewStory}
-            className="h-14 px-6 text-lg font-medium"
+            variant="outline"
+            className="h-12 px-5 text-base font-medium"
           >
             <Plus className="w-5 h-5 mr-2" />
             Start New Story
           </Button>
-
-          {storiesArray.length > 0 && (
-            <Button
-              variant="outline"
-              onClick={() => handleContinue(storiesArray[0].id.toString())}
-              className="h-14 px-6 text-lg font-medium"
-            >
-              Continue Last Story
-              <ArrowRight className="w-5 h-5 ml-2" />
-            </Button>
-          )}
         </div>
 
-        {/* Stats */}
-        <div className="flex gap-8 mb-10 pb-10 border-b border-border">
+        {/* Stories Grid - Only show if more than 1 story */}
+        {storiesArray.length > 1 && (
           <div>
-            <p className="text-3xl font-semibold text-foreground">
-              {storiesArray.length}
-            </p>
-            <p className="text-muted-foreground text-base">Total Stories</p>
-          </div>
-        </div>
-
-        {/* Stories Grid */}
-        {storiesArray.length > 0 ? (
-          <div>
-            <h2 className="font-story text-2xl font-semibold text-foreground mb-6">
-              Your Stories
-            </h2>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="font-story text-2xl font-semibold text-foreground">
+                All Your Stories
+              </h2>
+              <span className="text-muted-foreground text-sm">
+                {storiesArray.length} stories
+              </span>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {storiesArray.map((story) => (
                 <StoryCard
@@ -157,8 +168,10 @@ export default function MyStories() {
               ))}
             </div>
           </div>
-        ) : (
-          /* Empty State */
+        )}
+
+        {/* Empty State - Only shows when no stories */}
+        {storiesArray.length === 0 && (
           <div className="text-center py-16 px-6 bg-card border border-border rounded-xl">
             <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
               <BookOpen className="w-10 h-10 text-primary" />
