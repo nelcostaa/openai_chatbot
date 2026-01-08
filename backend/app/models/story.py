@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, JSON, String
 from sqlalchemy.orm import relationship
 
 from backend.app.db.base_class import Base
@@ -18,6 +18,7 @@ class Story(Base):
     current_phase = Column(String, default="GREETING")
     age_range = Column(String, nullable=True)
     status = Column(String, default="draft")  # 'draft', 'completed'
+    chapter_names = Column(JSON, default=dict)  # Custom chapter display names (visual only)
 
     created_at = Column(DateTime, default=datetime.utcnow)
 

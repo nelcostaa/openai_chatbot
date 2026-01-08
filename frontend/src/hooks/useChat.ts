@@ -99,5 +99,59 @@ export const useJumpToPhase = (projectId: number | undefined) => {
     });
 };
 
+// Chapter names types
+export type ChapterNames = Record<string, string>;
+
+export interface ChapterNamesResponse {
+    id: number;
+    chapter_names: ChapterNames | null;
+}
+
+// Update chapter names (visual only)
+export const useUpdateChapterNames = (projectId: number | undefined) => {
+    return useMutation({
+        mutationFn: async (chapterNames: ChapterNames): Promise<ChapterNamesResponse> => {
+            if (!projectId) {
+                throw new Error('Project ID is required');
+            }
+            const response = await api.put<ChapterNamesResponse>(
+                `/api/stories/${projectId}/chapter-names`,
+                { chapter_names: chapterNames }
+            );
+            return response.data;
+        },
+    });
+};
+
+/**
+ * Get effective chapter label by merging custom names with defaults.
+ * Custom names take precedence over PHASE_DISPLAY_INFO defaults.
+ */
+export const getChapterLabel = (
+    phaseId: string,
+    customNames?: ChapterNames | null
+): string => {
+    // Custom name takes precedence
+    if (customNames && customNames[phaseId]) {
+        return customNames[phaseId];
+    }
+    // Fall back to default
+    return PHASE_DISPLAY_INFO[phaseId]?.label || phaseId;
+};
+
+/**
+ * Get effective chapter info (label + ageRange) merging custom with defaults.
+ */
+export const getChapterInfo = (
+    phaseId: string,
+    customNames?: ChapterNames | null
+): { label: string; ageRange?: string } => {
+    const defaultInfo = PHASE_DISPLAY_INFO[phaseId] || { label: phaseId };
+    return {
+        label: customNames?.[phaseId] || defaultInfo.label,
+        ageRange: defaultInfo.ageRange, // Age range always comes from defaults
+    };
+};
+
 // Legacy export for backward compatibility
 export { useProjectMessages as useStoryMessages };

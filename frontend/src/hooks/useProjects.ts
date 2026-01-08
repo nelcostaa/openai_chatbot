@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import type { ChapterNames } from './useChat';
 
 export interface Project {
     id: number;
@@ -9,6 +10,7 @@ export interface Project {
     current_phase: string;
     age_range: string | null;
     status: string;
+    chapter_names: ChapterNames | null;
     created_at?: string;
 }
 

@@ -49,7 +49,13 @@ Keep it conversational (1-2 sentences). Be genuinely curious.""",
     },
     Phase.CHILDHOOD: {
         "description": "Ages 0-12",
-        "prompt": """You are conducting a chronological life story interview. Phase: CHILDHOOD (Ages 0-12)
+        "prompt": """You are conducting a chronological life story interview. Phase: CHILDHOOD (Ages 0-12)  # Initialize model for this attempt
+            llm = ChatGoogleGenerativeAI(
+                model=model_name,
+                google_api_key=GEMINI_API_KEY,
+                temperature=0.7,
+                convert_system_message_to_human=True,
+            )
 
 Your goal: Explore earliest memories and foundational years.
 

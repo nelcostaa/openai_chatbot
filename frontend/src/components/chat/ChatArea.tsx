@@ -3,7 +3,8 @@ import { PhaseTimeline } from "./PhaseTimeline";
 import { ChatMessage } from "./ChatMessage";
 import { AgeSelectionCards } from "./AgeSelectionCards";
 import { InputBar } from "./InputBar";
-import { useProjectMessages, SendMessageResponse, PHASE_DISPLAY_INFO, useJumpToPhase, PhaseJumpResponse } from "@/hooks/useChat";
+import { ChapterNamesDialog } from "./ChapterNamesDialog";
+import { useProjectMessages, SendMessageResponse, PHASE_DISPLAY_INFO, useJumpToPhase, PhaseJumpResponse, useUpdateChapterNames, getChapterLabel, type ChapterNames } from "@/hooks/useChat";
 import { useQueryClient } from "@tanstack/react-query";
 
 interface Message {
@@ -27,9 +28,10 @@ interface ChatAreaProps {
   projectId: number | undefined;
   initialPhase?: string;
   initialAgeRange?: string | null;
+  initialChapterNames?: ChapterNames | null;
 }
 
-export function ChatArea({ sendMessage, projectId, initialPhase, initialAgeRange }: ChatAreaProps) {
+export function ChatArea({ sendMessage, projectId, initialPhase, initialAgeRange, initialChapterNames }: ChatAreaProps) {
   const queryClient = useQueryClient();
   const { data: apiMessages = [], isLoading } = useProjectMessages(projectId);
   const [selectedAge, setSelectedAge] = useState<string | null>(initialAgeRange || null);
@@ -37,6 +39,11 @@ export function ChatArea({ sendMessage, projectId, initialPhase, initialAgeRange
 
   // Phase jump mutation
   const jumpToPhase = useJumpToPhase(projectId);
+
+  // Chapter names state and mutation
+  const [chapterNames, setChapterNames] = useState<ChapterNames | null>(initialChapterNames || null);
+  const [isChapterNamesDialogOpen, setIsChapterNamesDialogOpen] = useState(false);
+  const updateChapterNames = useUpdateChapterNames(projectId);
 
   // Phase state tracking - initialize with project data if available
   const [phaseState, setPhaseState] = useState<PhaseState>({
@@ -59,6 +66,13 @@ export function ChatArea({ sendMessage, projectId, initialPhase, initialAgeRange
       }
     }
   }, [initialPhase, initialAgeRange]);
+
+  // Update chapter names when initial data changes
+  useEffect(() => {
+    if (initialChapterNames !== undefined) {
+      setChapterNames(initialChapterNames);
+    }
+  }, [initialChapterNames]);
 
   // Determine if age selection should be shown
   // Show when: in GREETING phase AND no age selected yet
@@ -158,6 +172,19 @@ export function ChatArea({ sendMessage, projectId, initialPhase, initialAgeRange
     }
   };
 
+  // Handle saving chapter names
+  const handleSaveChapterNames = async (newChapterNames: ChapterNames) => {
+    try {
+      await updateChapterNames.mutateAsync(newChapterNames);
+      setChapterNames(newChapterNames);
+      setIsChapterNamesDialogOpen(false);
+      // Invalidate project query to refresh chapter names
+      queryClient.invalidateQueries({ queryKey: ['project', projectId] });
+    } catch (error) {
+      console.error("Failed to save chapter names:", error);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -166,10 +193,10 @@ export function ChatArea({ sendMessage, projectId, initialPhase, initialAgeRange
     );
   }
 
-  // Get next phase name for button display
+  // Get next phase name for button display (use custom name if available)
   const nextPhaseIndex = phaseState.phaseIndex + 1;
   const nextPhaseName = nextPhaseIndex < phaseState.phaseOrder.length
-    ? PHASE_DISPLAY_INFO[phaseState.phaseOrder[nextPhaseIndex]]?.label || phaseState.phaseOrder[nextPhaseIndex]
+    ? getChapterLabel(phaseState.phaseOrder[nextPhaseIndex], chapterNames)
     : "";
 
   // Default welcome message for new projects
@@ -193,6 +220,18 @@ export function ChatArea({ sendMessage, projectId, initialPhase, initialAgeRange
         currentPhase={phaseState.phase}
         onPhaseSelect={handlePhaseSelect}
         isJumping={jumpToPhase.isPending}
+        chapterNames={chapterNames}
+        onEditChapterNames={() => setIsChapterNamesDialogOpen(true)}
+      />
+
+      {/* Chapter Names Edit Dialog */}
+      <ChapterNamesDialog
+        isOpen={isChapterNamesDialogOpen}
+        onClose={() => setIsChapterNamesDialogOpen(false)}
+        onSave={handleSaveChapterNames}
+        currentChapterNames={chapterNames}
+        phaseOrder={phaseState.phaseOrder}
+        isSaving={updateChapterNames.isPending}
       />
 
       <div className="flex-1 overflow-y-auto px-6 py-6 scrollbar-thin">

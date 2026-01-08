@@ -148,6 +148,7 @@ export default function ProjectInterview() {
                     projectId={projectId}
                     initialPhase={project?.current_phase}
                     initialAgeRange={project?.age_range}
+                    initialChapterNames={project?.chapter_names}
                 />
             </div>
 

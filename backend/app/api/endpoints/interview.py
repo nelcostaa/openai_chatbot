@@ -146,6 +146,7 @@ def jump_to_phase(
 
     # Get phase config for description
     from backend.app.services.interview import PHASE_CONFIG
+
     phase_config = PHASE_CONFIG.get(new_phase, PHASE_CONFIG.get("GREETING", {}))
     phase_index = service.get_phase_index(new_phase, phase_order)
 

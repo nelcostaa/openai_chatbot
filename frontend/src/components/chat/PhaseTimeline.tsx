@@ -1,6 +1,7 @@
-import { Check } from "lucide-react";
+import { Check, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { PHASE_DISPLAY_INFO } from "@/hooks/useChat";
+import { PHASE_DISPLAY_INFO, getChapterInfo, type ChapterNames } from "@/hooks/useChat";
+import { Button } from "@/components/ui/button";
 
 interface Phase {
   id: string;
@@ -17,6 +18,8 @@ interface PhaseTimelineProps {
   currentPhase?: string;
   onPhaseSelect?: (phaseId: string) => void;
   isJumping?: boolean;
+  chapterNames?: ChapterNames | null;
+  onEditChapterNames?: () => void;
 }
 
 export function PhaseTimeline({
@@ -28,12 +31,15 @@ export function PhaseTimeline({
   currentPhase = "",
   onPhaseSelect,
   isJumping = false,
+  chapterNames,
+  onEditChapterNames,
 }: PhaseTimelineProps) {
   // Build phases from phaseOrder if provided, otherwise use legacy phases
+  // Use custom chapter names if available
   const phases: Phase[] = phaseOrder.length > 0
     ? phaseOrder.map((phaseId, index) => ({
       id: phaseId,
-      label: PHASE_DISPLAY_INFO[phaseId]?.label || phaseId,
+      label: getChapterInfo(phaseId, chapterNames).label,
       status: index < currentPhaseIndex
         ? "complete" as const
         : index === currentPhaseIndex
@@ -42,8 +48,8 @@ export function PhaseTimeline({
     }))
     : legacyPhases || [];
 
-  // Get current phase info for header
-  const currentPhaseInfo = PHASE_DISPLAY_INFO[currentPhase] || { label: currentPhase };
+  // Get current phase info for header (use custom name if available)
+  const currentPhaseInfo = getChapterInfo(currentPhase, chapterNames);
   const stepNumber = currentStep ?? (currentPhaseIndex + 1);
   const totalStepCount = totalSteps ?? phases.length;
 
@@ -64,14 +70,28 @@ export function PhaseTimeline({
   return (
     <div className="px-6 py-5 border-b border-border bg-card">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-medium text-foreground">
-          {currentPhaseInfo.label}
-          {PHASE_DISPLAY_INFO[currentPhase]?.ageRange && (
-            <span className="text-muted-foreground font-normal ml-2">
-              ({PHASE_DISPLAY_INFO[currentPhase].ageRange})
-            </span>
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-medium text-foreground">
+            {currentPhaseInfo.label}
+            {currentPhaseInfo.ageRange && (
+              <span className="text-muted-foreground font-normal ml-2">
+                ({currentPhaseInfo.ageRange})
+              </span>
+            )}
+          </h2>
+          {onEditChapterNames && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-muted-foreground hover:text-foreground"
+              onClick={onEditChapterNames}
+              aria-label="Edit chapter names"
+              title="Edit chapter names"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
           )}
-        </h2>
+        </div>
         <div className="flex items-center gap-3">
           {onPhaseSelect && (
             <span className="text-xs text-muted-foreground">

@@ -3,10 +3,10 @@ Story management endpoints for creating and managing user stories.
 """
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from backend.app.core.auth import get_current_active_user
@@ -36,6 +36,16 @@ class StoryUpdate(BaseModel):
     current_phase: Optional[str] = None
     age_range: Optional[str] = None
     status: Optional[str] = None
+    chapter_names: Optional[Dict[str, str]] = None
+
+
+class ChapterNamesUpdate(BaseModel):
+    """Chapter names update request (visual only)."""
+
+    chapter_names: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Custom display names for chapters. Keys are phase IDs (e.g., 'CHILDHOOD'), values are custom labels."
+    )
 
 
 class StoryResponse(BaseModel):
@@ -48,6 +58,7 @@ class StoryResponse(BaseModel):
     current_phase: str
     age_range: Optional[str]
     status: str
+    chapter_names: Optional[Dict[str, str]] = None
 
     class Config:
         from_attributes = True
@@ -203,7 +214,54 @@ def update_story(
         story.age_range = story_data.age_range
     if story_data.status is not None:
         story.status = story_data.status
+    if story_data.chapter_names is not None:
+        story.chapter_names = story_data.chapter_names
 
+    db.commit()
+    db.refresh(story)
+
+    return story
+
+
+@router.put("/{story_id}/chapter-names", response_model=StoryResponse)
+def update_chapter_names(
+    story_id: int,
+    data: ChapterNamesUpdate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Update custom chapter display names for a story.
+
+    This is a visual-only change - the underlying AI prompts remain unchanged.
+    Chapter names are stored as a JSON object mapping phase IDs to custom labels.
+
+    Args:
+        story_id: Story ID
+        data: Chapter names update data
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        Updated story with new chapter names
+
+    Raises:
+        HTTPException: If story not found or not owned by user
+    """
+    story = db.query(Story).filter(Story.id == story_id).first()
+
+    if not story:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Story not found"
+        )
+
+    if story.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access this story",
+        )
+
+    story.chapter_names = data.chapter_names
     db.commit()
     db.refresh(story)
 
