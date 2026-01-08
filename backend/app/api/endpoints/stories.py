@@ -44,7 +44,7 @@ class ChapterNamesUpdate(BaseModel):
 
     chapter_names: Dict[str, str] = Field(
         default_factory=dict,
-        description="Custom display names for chapters. Keys are phase IDs (e.g., 'CHILDHOOD'), values are custom labels."
+        description="Custom display names for chapters. Keys are phase IDs (e.g., 'CHILDHOOD'), values are custom labels.",
     )
 
 

@@ -23,7 +23,7 @@ def upgrade() -> None:
     """Add chapter_names JSON column to stories table for custom chapter labels."""
     op.add_column(
         "stories",
-        sa.Column("chapter_names", sa.JSON(), nullable=True, server_default="{}")
+        sa.Column("chapter_names", sa.JSON(), nullable=True, server_default="{}"),
     )
 
 

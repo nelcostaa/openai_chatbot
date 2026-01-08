@@ -132,7 +132,7 @@ export function ChapterNamesDialog({
                         return (
                             <div key={phaseId} className="space-y-1.5">
                                 <div className="flex items-center justify-between">
-                                    <Label 
+                                    <Label
                                         htmlFor={`chapter-${phaseId}`}
                                         className="text-sm font-medium"
                                     >
@@ -166,8 +166,8 @@ export function ChapterNamesDialog({
                                     className="h-9"
                                     aria-describedby={`chapter-${phaseId}-hint`}
                                 />
-                                <p 
-                                    id={`chapter-${phaseId}-hint`} 
+                                <p
+                                    id={`chapter-${phaseId}-hint`}
                                     className="text-xs text-muted-foreground"
                                 >
                                     {currentValue.length}/{MAX_CHAPTER_NAME_LENGTH} characters
